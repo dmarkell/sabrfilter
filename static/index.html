@@ -416,8 +416,6 @@
 
   <script>
 
-    var max_weekly_period;
-    var max_daily_period;
     var collected_params = {};
     window.location.search.replace("?", "").split("&").forEach(function(item) { 
       var pieces = item.split("="); 
@@ -626,22 +624,6 @@
       return d3.round(Math.round(num/scalar*100)/100*scalar,2)
     };
 
-    function inches_to_feet_inches(v) {
-        var inches = v;
-        var feet = Math.floor(inches / 12);
-        inches %= 12;
-
-        return feet + '\'' + inches + '"';
-    };
-
-    function freeze_count_values(input_group) {
-      var output = [];
-      input_group.reduceCount().all().forEach(function(a) { 
-        output.push(a.value);
-      });
-
-      return output;
-    }
 
     function chartElement(dim_name, chart_name, control_elem) {
 
@@ -740,29 +722,8 @@
 
     toggle_loading();
     
-    data_src = "/averages.tsv";
-    // get sampling checkbox values before wiping chart-rows
-    /*
-    if ($("#use-full-data").length > 0 && $("#use-full-data")[0].checked) {
-      sampled = false;
-      data_src = "raters_full.tsv";
-    } else {
-      sampled = true;
-      data_src = "raters_sample.tsv";
-      //data_src = "raters_sample.json";
-    };
-    */
+
     $("#chart-rows").html('')
-
-
-    /*
-    var metro_codes = [];
-    var metro_code_lookup = {};
-    METROS.forEach(function(item, i) {
-      metro_code_lookup[item["metro_code"]] = item["metro_name"];
-      metro_codes.push(item["metro_code"]);
-    });
-    */
 
     /*
     var scatter_x_var = $("#x-var").val();
@@ -776,7 +737,6 @@
           .attr("id", "chart-rows-control")
           .css(
             {
-              // margin:"10px 0 0 20px", 
               display: "none",
               position: "absolute", bottom: "10px", left: "350px"
             }
