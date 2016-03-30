@@ -47,8 +47,7 @@ def query_db():
     output = [dict(row) for row in cursor]
     payload = json.dumps(output)
 
-    # return payload
-    return None
+    return payload
 
 if __name__ == "__main__":
     app.run()
