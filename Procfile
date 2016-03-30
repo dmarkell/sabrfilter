@@ -1,0 +1,1 @@
+web: gunicorn sabrfilter:app --log-file=-
