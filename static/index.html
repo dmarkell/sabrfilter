@@ -432,7 +432,7 @@
 
 
   var retrieve_path = function() { 
-    return location.origin.indexOf('file') == 0 ? 'http://localhost:8000' : ''
+    return location.origin.indexOf('file') == 0 ? 'http://127.0.0.1:5000' : ''
   }
 
   // "Like d3.time.format, but faster" 
@@ -752,9 +752,8 @@
     )
   
     var start = new Date();
-    var json_data_url = "http://127.0.0.1:5000/data";
 
-    d3.json(json_data_url, function(error, rows) {
+    d3.json(data_path + "/data", function(error, rows) {
     // d3.tsv(data_path + data_src, function(error, rows) {
       console.log("load_data: " + (new Date() - start));
       timers.push(new Date() - start)
