@@ -32,7 +32,7 @@ if is_prod:
 
 else:
     app.config['DEBUG'] = True
-    db_con = psycopg2.connect()
+    db_con = psycopg2.connect(host='')
 
 @app.route('/')
 def render_page():
@@ -47,7 +47,8 @@ def query_db():
     output = [dict(row) for row in cursor]
     payload = json.dumps(output)
 
-    return payload
+    # return payload
+    return None
 
 if __name__ == "__main__":
     app.run()

@@ -754,6 +754,11 @@
     var start = new Date();
 
     d3.json(data_path + "/data", function(error, rows) {
+      if (error) {
+        console.warn(error)
+        toggle_loading();
+        return
+      }
     // d3.tsv(data_path + data_src, function(error, rows) {
       console.log("load_data: " + (new Date() - start));
       timers.push(new Date() - start)
