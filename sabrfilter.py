@@ -19,14 +19,6 @@ is_prod = os.environ.get('IS_HEROKU', None)
 if is_prod:
     app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
     heroku = Heroku(app)
-    db_con = psycopg2.connect()
-
-else:
-    app.config['DEBUG'] = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = "{}/{}".format(
-        os.environ['PG_DATABASE_PATH'],
-        os.environ['PG_DATABASE_NAME']
-    )
     urlparse.uses_netloc.append("postgres")
     url = urlparse.urlparse(os.environ["DATABASE_URL"])
 
@@ -38,7 +30,9 @@ else:
         port=url.port
     )
 
-
+else:
+    app.config['DEBUG'] = True
+    db_con = psycopg2.connect()
 
 @app.route('/')
 def render_page():
