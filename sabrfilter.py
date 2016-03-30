@@ -24,7 +24,7 @@ else:
         os.environ['PG_DATABASE_NAME']
     )
 
-db_con = psycopg2.connect(host='')
+db_con = psycopg2.connect()
 
 @app.route('/')
 def render_page():
