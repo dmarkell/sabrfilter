@@ -42,7 +42,7 @@ def render_page():
 def query_db_batting():
 
     cursor = db_con.cursor(cursor_factory=RealDictCursor)
-    query = 'SELECT * FROM sabrfilter'
+    query = 'SELECT * FROM sabrfilter_batting'
     cursor.execute(query)
     output = [dict(row) for row in cursor]
     payload = json.dumps(output)
