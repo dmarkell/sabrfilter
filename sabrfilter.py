@@ -38,11 +38,22 @@ else:
 def render_page():
     return app.send_static_file('index.html')
 
-@app.route('/data')
-def query_db():
+@app.route('/data_batting')
+def query_db_batting():
 
     cursor = db_con.cursor(cursor_factory=RealDictCursor)
     query = 'SELECT * FROM sabrfilter'
+    cursor.execute(query)
+    output = [dict(row) for row in cursor]
+    payload = json.dumps(output)
+
+    return payload
+
+@app.route('/data_pitching')
+def query_db_pitching():
+
+    cursor = db_con.cursor(cursor_factory=RealDictCursor)
+    query = 'SELECT * FROM sabrfilter_pitching'
     cursor.execute(query)
     output = [dict(row) for row in cursor]
     payload = json.dumps(output)

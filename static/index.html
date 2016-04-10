@@ -91,12 +91,14 @@
       display: inline-block
     }
 
-    .toggler {
+    .toggler,
+    .player-type-toggler {
       size: 0.8em;
       margin-left: 5px;
     }
 
-    .toggler:hover {
+    .toggler:hover,
+    .player-type-toggler:hover {
       text-decoration: underline;
       cursor: pointer;
     }
@@ -599,7 +601,8 @@
 
   var aggregate_data, usa_projection;
 
-  function render_page() {
+
+  function render_page(player_type) {
     
     var average_ratio_accessor = function(d) { 
         
@@ -710,7 +713,7 @@
       return groups.regression;
     };
 
-    var rows, sampled, data_src;
+    var rows, data_src;
 
     var timers = [];
     var top_start = new Date();
@@ -753,7 +756,8 @@
   
     var start = new Date();
 
-    d3.json(data_path + "/data", function(error, rows) {
+    var endpoint = '/data_' + player_type.toLowerCase();
+    d3.json(data_path + endpoint, function(error, rows) {
       if (error) {
         console.warn(error)
         toggle_loading();
@@ -775,11 +779,19 @@
         // d.r = parseInt(d.r);
         // d.rbi = parseInt(d.rbi);
         // d.sb = parseInt(d.sb);
-        d.tob = (d.h + d.bb + d.hbp);
-        d.ba = d.ab > 0 ? d.h / d.ab : NaN
-        d.obp = d.pa > 0 ? d.tob / d.pa : NaN
+        if (player_type == 'Batting') {
+          d.tob = d.h + d.bb + d.hbp;
+          d.ba = d.ab > 0 ? d.h / d.ab : NaN
+          d.obp = d.pa > 0 ? d.tob / d.pa : NaN
+        }
+        if (player_type == 'Pitching') {
+          d.wh = d.h + d.bb;
+          d.whip = d.ip > 0 ? d.h / d.ip : NaN;
+          d.er9 = 9*d.er;
+          d.era = d.ip > 0 ? d.er9 / d.ip: NaN;
+          
+        }
       });
-
 
       // Create the crossfilter
       ndx = crossfilter(rows);
@@ -787,21 +799,51 @@
       start = new Date();
 
       // Create dimensions
+
       dims = {
         year: ndx.dimension(function(d) { return d.year; }),
         team: ndx.dimension(function(d) { return d.team }),
         league: ndx.dimension(function(d) { return d.lgid }),
-        ab: ndx.dimension(function(d) { return d.ab }),
-        h: ndx.dimension(function(d) { return d.h }),
-        pa: ndx.dimension(function(d) { return d.pa }),
         pos: ndx.dimension(function(d) { return d.pos == 'NA' ? '?' : d.pos}),
-        ba: ndx.dimension(function(d) { return d.ba }),
-        obp: ndx.dimension(function(d) { return d.obp }),
-        hr: ndx.dimension(function(d) { return d.hr }),
-        r: ndx.dimension(function(d) { return d.r }),
-        rbi: ndx.dimension(function(d) { return d.rbi }),
-        sb: ndx.dimension(function(d) { return d.sb }),
-      };
+      }
+
+      var battingdims = function() {
+        return {
+          ab: ndx.dimension(function(d) { return d.ab }),
+          h: ndx.dimension(function(d) { return d.h }),
+          pa: ndx.dimension(function(d) { return d.pa }),
+          ba: ndx.dimension(function(d) { return d.ba }),
+          obp: ndx.dimension(function(d) { return d.obp }),
+          hr: ndx.dimension(function(d) { return d.hr }),
+          r: ndx.dimension(function(d) { return d.r }),
+          rbi: ndx.dimension(function(d) { return d.rbi }),
+          sb: ndx.dimension(function(d) { return d.sb }),
+        }
+      }
+
+      var pitchingdims = function() {
+        return {
+          ip: ndx.dimension(function(d) { return d.ip }),
+          w: ndx.dimension(function(d) { return d.w }),
+          era: ndx.dimension(function(d) { return d.era }),
+          whip: ndx.dimension(function(d) { return d.whip }),
+          so: ndx.dimension(function(d) { return d.so }),
+          gs: ndx.dimension(function(d) { return d.gs }),
+          sv: ndx.dimension(function(d) { return d.sv })
+        }
+      }
+
+      if (player_type == 'Batting') {
+        $.each(battingdims(), function(i, item) {
+          dims[i] = item;
+        })
+      } 
+
+      if (player_type == 'Pitching') {
+        $.each(pitchingdims(), function(i, item) {
+          dims[i] = item;
+        })
+      }
       
       console.log("make dimensions: " + (new Date() - start))
       timers.push(new Date() - start)
@@ -812,59 +854,137 @@
       groups = {
         teams: dims.team.group(),
         years: dims.year.group(),
-        abs: dims.ab.group(function(d) { return Math.floor(d  / 25) * 25; }),
-        hs: dims.h.group(function(d) { return Math.floor(d  / 5) * 5; }),
-        bas: dims.ba.group(function(d) { return decimal_bucket(d,0.01); }),
-        decades: dims.year.group(function(d) { return Math.floor((d - 5) / 10) * 10; }),
         leagues: dims.league.group(function(d) { return d; }),
         poss: dims.pos.group(function(d) { return d; }),
-        pas: dims.pa.group(function(d) { return Math.floor(d  / 25) * 25; }),
-        obps: dims.obp.group(function(d) { return decimal_bucket(d,0.01); }),
-        hrs: dims.hr.group(function(d) { return Math.floor(d  / 5) * 5; }),
-        rs: dims.r.group(function(d) { return Math.floor(d  / 5) * 5; }),
-        rbis: dims.rbi.group(function(d) { return Math.floor(d  / 5) * 5; }),
-        sbs: dims.sb.group(function(d) { return Math.floor(d  / 5) * 5; })
       };
+      
+      var batting_groups = function() {
+        return {
+            abs: dims.ab.group(function(d) { return Math.floor(d  / 25) * 25; }),
+            hs: dims.h.group(function(d) { return Math.floor(d / 5) * 5; }),
+            bas: dims.ba.group(function(d) { return decimal_bucket(d,0.01); }),
+            pas: dims.pa.group(function(d) { return Math.floor(d  / 25) * 25; }),
+            obps: dims.obp.group(function(d) { return decimal_bucket(d,0.01); }),
+            hrs: dims.hr.group(function(d) { return Math.floor(d  / 5) * 5; }),
+            rs: dims.r.group(function(d) { return Math.floor(d  / 5) * 5; }),
+            rbis: dims.rbi.group(function(d) { return Math.floor(d  / 5) * 5; }),
+            sbs: dims.sb.group(function(d) { return Math.floor(d  / 5) * 5; })
+          }
+      };
+
+      var pitching_groups = function() {
+        return {
+            ips: dims.ip.group(function(d) { return Math.floor(d  / 10) * 10; }),
+            sos: dims.so.group(function(d) { return Math.floor(d  / 10) * 10; }),
+            ws: dims.w.group(function(d) { return Math.floor(d  / 5) * 5; }),
+            gss: dims.gs.group(function(d) { return Math.floor(d  / 5) * 5; }),
+            svs: dims.sv.group(function(d) { return Math.floor(d  / 5) * 5; }),
+            whips: dims.whip.group(function(d) { return decimal_bucket(d,0.1); }),
+            eras: dims.era.group(function(d) { return decimal_bucket(d,0.1); }),
+          }
+
+      }
+
+      if (player_type == 'Batting') {
+        $.each(batting_groups(), function(i, item) {
+          groups[i] = item;
+        })
+      } 
+
+      if (player_type == 'Pitching') {
+        $.each(pitching_groups(), function(i, item) {
+          groups[i] = item;
+        })
+      }
+
       
       console.log("make groups: " + (new Date() - start))
       timers.push(new Date() - start)
 
+      var batting_elems = function() {
+        return [
+          annotatedChartElement("ab", "At Bats"),
+          annotatedChartElement(
+            "pa",
+            "Plate Appearances",
+            $("<div></div>")
+              .append(
+                $("<input></input>")
+                  .attr("type", "checkbox")
+                  .attr("checked", true)
+                  .attr("id", "pa-qualified")
+                  .on('click', function() {
+                    toggle_qualified('pa', paChart, 503);
+                    dc.renderAll();
+                  })
+              )
+              .append($('<span></span>').text("Qualified (503+ PA)"))
+          ),
+          
+          annotatedChartElement("hr", "Home Runs"),
+          annotatedChartElement("sb", "Stolen Bases"),
+          annotatedChartElement("rbi", "RBIs"),
+          annotatedChartElement("ba", "Batting Average"),
+          annotatedChartElement("obp", "On-Base Percentage"),
+          annotatedChartElement("r", "Runs"),
+        ];
+      };
+
+      var pitching_elems = function() {
+        return [
+          annotatedChartElement("gs", "Games Started"),
+          annotatedChartElement(
+            "ip",
+            "Innings Pitched",
+            $("<div></div>")
+              .append(
+                $("<input></input>")
+                  .attr("type", "checkbox")
+                  .attr("checked", false)
+                  .attr("id", "ip-qualified")
+                  .on('click', function() {
+                    toggle_qualified('ip', ipChart, 162);
+                    dc.renderAll();
+                  })
+              )
+              .append($('<span></span>').text("Qualified (162+ IP)"))
+          ),
+          annotatedChartElement("so", "Strike Outs"),
+          annotatedChartElement("w", "Wins"),
+          annotatedChartElement("sv", "Saves"),
+          annotatedChartElement("era", "ERA"),
+          annotatedChartElement("whip", "WHIP"),
+        ];
+      };
+
+      if (player_type == 'Batting') {
+        var chart_elems = batting_elems();
+      } else if (player_type == 'Pitching') {
+        var chart_elems = pitching_elems();
+      }
+
       $("#global-rows")
         .append($("<div></div>").addClass("section-header")
-          .append($("<h2></h2>").text("Global Filters"))
+          .append($("<h2></h2>").text(player_type))
           .append($("<span></span>").addClass("toggler").text("(hide)"))
+          .append($("<span></span>").addClass("player-type-toggler")
+            .text("(" + function () { return player_type == "Batting" ? "Pitching" : "Batting" }() + ")"))
         )
         .append($("<div></div>").addClass("chart-row")
           .append($("<div></div>").addClass("chart-col")
             .append(chartElement("league", "League"))
-            .append(annotatedChartElement("ab", "At Bats"))
-            .append(
-              annotatedChartElement(
-                "pa",
-                "Plate Appearances",
-                $("<div></div>")
-                  .append(
-                    $("<input></input>")
-                      .attr("type", "checkbox")
-                      .attr("id", "pa-qualified")
-                      .on('click', function() {
-                        toggle_qualified('pa', paChart, 503);
-                        dc.renderAll();
-                      })
-                  )
-                  .append($('<span></span>').text("Qualified (503+ PA)"))
-              )
-            )
-            .append(annotatedChartElement("hr", "Home Runs"))
-            .append(annotatedChartElement("rbi", "RBIs"))
+            .append(chart_elems[0])
+            .append(chart_elems[1])
+            .append(chart_elems[2])
+            .append(chart_elems[3])
           )
           .append($("<div></div>").addClass("chart-col")
             
             .append(chartElement("year", "Year"))
-            .append(annotatedChartElement("ba", "Batting Average"))
-            .append(annotatedChartElement("obp", "On-Base Percentage"))
-            .append(annotatedChartElement("r", "Runs"))
-            .append(annotatedChartElement("sb", "Stolen Bases"))
+            .append(chart_elems[4])
+            .append(chart_elems[5])
+            .append(chart_elems[6])
+            .append(chart_elems[7])
           )
           .append($("<div></div>").addClass("chart-col")
             .append(chartElement("pos", "Position"))
@@ -1114,6 +1234,8 @@
 
       start = new Date();
 
+      var pos_order = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'P', '?'];
+
       yearChart = make_hist_chart(
         "year", 
         {
@@ -1121,90 +1243,160 @@
           'domain_max': 2017,
         }
       );
-        
-      abChart = make_hist_chart(
-        "ab",
-        {
-          rounder: function(d) { return Math.floor(d  / 25) * 25; },
-          annotations: ['Avg', 'Sum']
-        }
-      );
-
-      baChart = make_hist_chart(
-        "ba",
-        {
-          numer: 'h',
-          denom: 'ab',
-          xFormatter: formatSlashStat,
-          domain_max: 0.500,
-          rounder: function(d) { return decimal_bucket(d,0.01); }
-        }
-      );
-
-      paChart = make_hist_chart(
-        "pa",
-        {
-          rounder: function(d) { return Math.floor(d  / 25) * 25; },
-          annotations: ['Avg', 'Sum']
-        }
-      );
-
-      obpChart = make_hist_chart(
-        "obp",
-        {
-          numer: 'tob',
-          denom: 'pa',
-          xFormatter: formatSlashStat,
-          // elasticX: true,
-          domain_max: 0.500,
-          rounder: function(d) { return decimal_bucket(d,0.01); }
-        }
-      );
-
-      rChart = make_hist_chart(
-        "r",
-        {
-          annotations: ['Avg', 'Sum'],
-          rounder: function(d) { return Math.floor(d  / 5) * 5; }
-        }
-      );
-
-      hrChart = make_hist_chart(
-        "hr",
-
-        {
-          annotations: ['Avg', 'Sum'],
-          rounder: function(d) { return Math.floor(d  / 5) * 5; }
-        }
-      );
-
-      rbiChart = make_hist_chart(
-        "rbi",
-        {
-          annotations: ['Avg', 'Sum'],
-          rounder: function(d) { return Math.floor(d  / 5) * 5; }
-        }
-      );
-
-      sbChart = make_hist_chart(
-        "sb",
-        {
-          annotations: ['Avg', 'Sum'],
-          rounder: function(d) { return Math.floor(d  / 5) * 5; }
-        }
-      );
-
-      var pos_order = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'P', '?'];
 
       teamChart = make_row_chart("team", {'h': 550});
       leagueChart = make_pie_chart("league");
       posChart = make_row_chart("pos", {orderer: function(d) { return pos_order.indexOf(d.key)}});
+        
+      if (player_type == 'Batting') {
+        abChart = make_hist_chart(
+          "ab",
+          {
+            rounder: function(d) { return Math.floor(d  / 25) * 25; },
+            annotations: ['Avg', 'Sum']
+          }
+        );
 
+        baChart = make_hist_chart(
+          "ba",
+          {
+            numer: 'h',
+            denom: 'ab',
+            xFormatter: formatSlashStat,
+            domain_max: 0.500,
+            rounder: function(d) { return decimal_bucket(d,0.01); }
+          }
+        );
+
+        paChart = make_hist_chart(
+          "pa",
+          {
+            rounder: function(d) { return Math.floor(d  / 25) * 25; },
+            annotations: ['Avg', 'Sum']
+          }
+        );
+
+        obpChart = make_hist_chart(
+          "obp",
+          {
+            numer: 'tob',
+            denom: 'pa',
+            xFormatter: formatSlashStat,
+            // elasticX: true,
+            domain_max: 0.500,
+            rounder: function(d) { return decimal_bucket(d,0.01); }
+          }
+        );
+
+        rChart = make_hist_chart(
+          "r",
+          {
+            annotations: ['Avg', 'Sum'],
+            rounder: function(d) { return Math.floor(d  / 5) * 5; }
+          }
+        );
+
+        hrChart = make_hist_chart(
+          "hr",
+
+          {
+            annotations: ['Avg', 'Sum'],
+            rounder: function(d) { return Math.floor(d  / 5) * 5; }
+          }
+        );
+
+        rbiChart = make_hist_chart(
+          "rbi",
+          {
+            annotations: ['Avg', 'Sum'],
+            rounder: function(d) { return Math.floor(d  / 5) * 5; }
+          }
+        );
+
+        sbChart = make_hist_chart(
+          "sb",
+          {
+            annotations: ['Avg', 'Sum'],
+            rounder: function(d) { return Math.floor(d  / 5) * 5; }
+          }
+        ); 
+
+        set_range_filter('pa', paChart, 503);
+
+      } else if (player_type == 'Pitching') {
+
+        gsChart = make_hist_chart(
+            "gs",
+            {
+              // rounder: function(d) { return Math.floor(d  / 25) * 25; },
+              annotations: ['Avg', 'Sum']
+            }
+          );
+
+        eraChart = make_hist_chart(
+          "era",
+          {
+            numer: 'er9',
+            denom: 'ip',
+            xFormatter: formatSlashStat,
+            domain_max: 5.0,
+            rounder: function(d) { return decimal_bucket(d,0.1); }
+          }
+        );
+
+        ipChart = make_hist_chart(
+          "ip",
+          {
+            rounder: function(d) { return Math.floor(d  / 10) * 10; },
+            annotations: ['Avg', 'Sum']
+          }
+        );
+
+        whipChart = make_hist_chart(
+          "whip",
+          {
+            numer: 'wh',
+            denom: 'ip',
+            xFormatter: formatSlashStat,
+            // elasticX: true,
+            domain_max: 2.0,
+            rounder: function(d) { return decimal_bucket(d,0.1); }
+          }
+        );
+
+        wChart = make_hist_chart(
+          "w",
+          {
+            annotations: ['Avg', 'Sum'],
+            rounder: function(d) { return Math.floor(d  / 5) * 5; }
+          }
+        );
+
+        svChart = make_hist_chart(
+          "sv",
+
+          {
+            annotations: ['Avg', 'Sum'],
+            rounder: function(d) { return Math.floor(d  / 5) * 5; }
+          }
+        );
+
+        soChart = make_hist_chart(
+          "so",
+          {
+            annotations: ['Avg', 'Sum'],
+            rounder: function(d) { return Math.floor(d  / 10) * 10; }
+          }
+        );
+
+        // set_range_filter('ip', ipChart, 162);
+      }
+   
       console.log("make charts: " + (new Date() - start));
       timers.push(new Date() - start);
 
       // set defaults
-      set_range_filter('pa', paChart, 503);
+      
       set_range_filter('year', yearChart, 2015, 2016);
 
       dc.dataCount('.data-count')
@@ -1218,6 +1410,11 @@
       $(".toggler").on("click", function() { 
         $(this).parent().siblings().toggle();
         $(this).toggleText("(show)", "(hide)");
+      });
+
+      $(".player-type-toggler").on("click", function() {
+        var new_player_type = player_type == 'Batting' ? 'Pitching' : 'Batting';
+        render_page(new_player_type);
       });
 
       toggle_loading();
@@ -1258,20 +1455,41 @@
         )
       ;
 
-      var columns =  [
+      var columns = [
         {"data": "year", "title": "Year", "defaultContent": ""},
         {"data": "full_name", "title": "Full Name", "defaultContent": ""},
         {"data": "team", "title": "Team", "defaultContent": ""},
         {"data": "pos", "title": "Pos", "defaultContent": ""},
-        {"data": "ba", "title": "Batting<br>Avg", "defaultContent": "", "render": formatSlashStat},
-        {"data": "obp", "title": "On-Base<br>Percentage", "defaultContent": "", "render": formatSlashStat},
-        {"data": "ab", "title": "ABs", "defaultContent": ""},
-        {"data": "pa", "title": "PAs", "defaultContent": ""},
-        {"data": "hr", "title": "HRs", "defaultContent": ""},
-        {"data": "r", "title": "Runs", "defaultContent": ""},
-        {"data": "rbi", "title": "RBIs", "defaultContent": ""},
-        {"data": "sb", "title": "SBs", "defaultContent": ""},
       ];
+
+      var extra_columns;
+      if (player_type == 'Batting') {
+
+        extra_columns = [
+          {"data": "ba", "title": "Batting<br>Avg", "defaultContent": "", "render": formatSlashStat},
+          {"data": "obp", "title": "On-Base<br>Percentage", "defaultContent": "", "render": formatSlashStat},
+          {"data": "ab", "title": "ABs", "defaultContent": ""},
+          {"data": "pa", "title": "PAs", "defaultContent": ""},
+          {"data": "hr", "title": "HRs", "defaultContent": ""},
+          {"data": "r", "title": "Runs", "defaultContent": ""},
+          {"data": "rbi", "title": "RBIs", "defaultContent": ""},
+          {"data": "sb", "title": "SBs", "defaultContent": ""},  
+        ]
+      } else if (player_type == 'Pitching') {
+        extra_columns = [
+          {"data": "gs", "title": "Games<br>Started", "defaultContent": ""},
+          {"data": "ip", "title": "Innings<br>Pitched", "defaultContent": "", "render": formatPrec1},
+          {"data": "era", "title": "ERA", "defaultContent": "", "render": formatSlashStat},
+          {"data": "whip", "title": "WHIP", "defaultContent": "", "render": formatSlashStat},
+          {"data": "sv", "title": "Saves", "defaultContent": ""},
+          {"data": "w", "title": "Wins", "defaultContent": ""},
+          {"data": "so", "title": "Ks", "defaultContent": ""},
+        ]
+      }
+
+      extra_columns.forEach(function(item) {
+        columns.push(item);
+      })
 
       playerTable = $('#player-datatable').dataTable( {
         "data": dims.year.top(table_size),
@@ -1305,7 +1523,7 @@
 
   };
 
-  render_page();
+  render_page('Batting');
 
   </script>
   </body>
