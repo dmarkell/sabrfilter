@@ -72,9 +72,8 @@
 
     }
 
-
-  var retrieve_path = function() { 
-    return location.origin.indexOf('file') == 0 ? 'http://127.0.0.1:5000' : ''
+  var disable_logging = function() {
+    console.log = function() {}
   }
 
   // "Like d3.time.format, but faster" 
@@ -111,7 +110,7 @@
 
   var ratingsChart;
 
-  var data_path = retrieve_path();
+  disable_logging();
 
   var is_not_nan = function(d) { return !(isNaN(d))};
 
@@ -397,7 +396,7 @@
     var start = new Date();
 
     var endpoint = '/data_' + player_type.toLowerCase();
-    d3.json(data_path + endpoint, function(error, rows) {
+    d3.json(endpoint, function(error, rows) {
       if (error) {
         console.warn(error)
         toggle_loading();
