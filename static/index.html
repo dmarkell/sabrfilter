@@ -75,13 +75,29 @@
     $.ajax({
       url: "get_config",
         "beforeSend": function() {
-          var client_version = 'v0.1.0';
+          var client_version = 'v0.1.1';
             $("#vers")
             .attr('data-version', client_version)
             .text(client_version)
           ;
         }
     }).done(function(d) {
+      var config = $.parseJSON(d);
+      if ( typeof config['error'] !== 'undefined' ) {
+        console.error('Error loading config file: ' + config['error'] + ';' + config['message'])
+        alert('Error loading config file: ' + config['error'] + ';' + config['message'])
+        // alert_client_filter_loader(config);
+        return
+      }
+      var api_version = config.version;
+        var client_version = $('#vers').attr("data-version");
+        if ( api_version !== client_version ) {
+          var msg = "Client version '" + client_version;
+          msg += "' does not match api_version '" + api_version + "'.";
+          msg += ' Consider hard refresh.'
+          console.warn(msg);
+        }
+
       var collected_params = {};
       window.location.search.replace("?", "").split("&").forEach(function(item) { 
         var pieces = item.split("="); 
