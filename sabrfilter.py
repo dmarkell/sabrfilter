@@ -60,5 +60,14 @@ def query_db_pitching():
 
     return payload
 
+@app.route('/get_config')
+def get_config():
+
+    config = {
+        "version": 'v0.1.0'
+    }
+
+    return json.dumps(config)
+
 if __name__ == "__main__":
     app.run()

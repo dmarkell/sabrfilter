@@ -6,10 +6,22 @@
   <title id="title">SABRfilter</title>
   <style>
 
+    /* hacky, sort of uses navbar-brand styling */
+      span#vers {
+        float: left;
+        height: 50px;
+        padding: 15px 0px;
+        line-height: 25px;
+        margin-right: 20px;
+        color: #a2a2a2;
+        font-size:small;
+      }
 
   </style>
   <link rel="stylesheet" type="text/css" href="../static/style.css">
   <link rel="stylesheet" type="text/css" href="../static/dc.css">
+
+
 
 </head>
 <body>
@@ -17,6 +29,7 @@
   <header>
     <div style="width:100%" id="title-block">
       <h1 style="float:left"><span class="logo-blue">SABR</span>filter</h1>
+      <div><span id="vers"></span></div>
       <h3 style="float:right"><span id="asof"></span></h3>
       
     </div>
@@ -51,6 +64,7 @@
   <script src="./static/jquery-1.7.1.min.js" type="text/javascript"></script>
   <script src="./static/jquery.dataTables.min.js"></script>
   <script src="./static/crossfilter.v1.min.js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/crossfilter/1.3.12/crossfilter.min.js"></script>
   <script src="./static/d3.v3.min.js"></script>
   <script src="./static/dc.min.js"></script>
   <script src="./static/topojson.min.js"></script>
@@ -58,1113 +72,1125 @@
 
   <script>
 
-    var collected_params = {};
-    window.location.search.replace("?", "").split("&").forEach(function(item) { 
-      var pieces = item.split("="); 
-      if (pieces.length == 2) {
-        collected_params[pieces[0]] = pieces[1]
-      }; 
-    });
-
-    var toggle_loading = function() {
-      $(".loading").toggle();
-      $("#title").toggleText("(Running)", "SABRfilter")
-
-    }
-
-  var disable_logging = function() {
-    console.log = function() {}
-  }
-
-  // "Like d3.time.format, but faster" 
-  // per view-source:http://square.github.io/crossfilter/
-  function parseDate(d) {
-
-    return new Date(
-        d.substring(0, 4),
-        d.substring(5, 7) - 1,
-        d.substring(8, 10),
-        d.substring(11, 13),
-        d.substring(14, 16));
-  };
-
-
-  // Various formatters.
-  var formatNumberGeneral = d3.format("d"),
-      formatNumber = d3.format(",d"),
-      formatPrec0 = d3.format(".0f"),
-      formatPrec1 = d3.format(".1f"),
-      formatPrec2 = d3.format(".2f"),
-      formatPrec3 = d3.format(".3f"),
-      formatChange = d3.format("+,d"),
-      formatPercent2 = d3.format(".2%"),
-      formatPercent1 = d3.format(".1%"),
-      formatPercent0 = d3.format("%"),
-      formatDate = d3.time.format("%B %d, %Y"),
-      formatDateShort = d3.time.format("%b. %d, %Y"),
-      formatTime = d3.time.format("%I:%M %p");
-
-  var formatSlashStat = function(n) {
-      return d3.format(".3f")(n).replace(/0\./, ".") 
-  };
-
-  var ratingsChart;
-
-  disable_logging();
-
-  var is_not_nan = function(d) { return !(isNaN(d))};
-
-  // http://stackoverflow.com/questions/5584010/jquery-toggle-html-text
-  $.fn.toggleText = function(t1, t2){
-    if (this.text() == t1) {
-      this.text(t2);
-    } else {
-      this.text(t1);
-    };
-    
-    return this;
-  };
-
-
-  // weighted average of derived ratio (e.g. ratings / users_count )
-  function reduceAddAvgRatio(attr_num, attr_denom) {
-    return function(p,v) {
-    
-      ++p.count_num;
-      ++p.count_denom;
-      p.sums_num += v[attr_num];
-      p.sums_denom += v[attr_denom];
-
-      return p;
-    };
-
-
-  };
-
-  function reduceRemoveAvgRatio(attr_num, attr_denom) {
-    return function(p,v) {
-
-      --p.count_num;
-      --p.count_denom;
-      p.sums_num -= v[attr_num];
-      p.sums_denom -= v[attr_denom];
-
-      return p;
-    };
-  };
-
-  function reduceInitAvgRatio() {
-    return {
-      count_num:0, sums_num:0, 
-      count_denom:0, sums_denom:0, 
-    };
-  };
-
-
-  // https://github.com/dc-js/dc.js/wiki/FAQ
-  function reduceAddAvg(attr) {
-    return function(p,v) {
-      ++p.count
-      p.sums += v[attr];
-
-      return p;
-    };
-  };
-
-  function reduceRemoveAvg(attr) {
-    return function(p,v) {
-      --p.count
-      p.sums -= v[attr];
-
-      return p;
-    };
-  };
-
-  function reduceInitAvg() {
-    return {
-      count:0, sums:0, 
-    };
-  };
-
-  function reduceAddAvgNulls(attr) {
-    return function(p,v) {
-      ++p.count;
-      if (is_not_nan(v[attr])) {
-        p.sums += v[attr];
-        ++p.count_non_null;
-      }
-
-      return p;
-    };
-  };
-
-  function reduceRemoveAvgNulls(attr) {
-    return function(p,v) {
-      --p.count;
-      if (is_not_nan(v[attr])) {
-        p.sums -= v[attr];
-        --p.count_non_null;
-      };
-
-      return p;
-    };
-  };
-
-  function reduceInitAvgNulls() {
-    return {
-      count:0, count_non_null: 0, sums:0, 
-    };
-  };
-
-  function set_range_filter(dim, chart, min_val, max_val) {
-    var max_val = max_val || dims[dim].top(1)[0][dim];
-    var group = dim + 's';
-    chart.filter(dc.filters.RangedFilter(min_val, max_val));
-    dims[dim].filter([min_val, max_val]);
-  };
-
-  function reset_range_filter(dim, chart) {
-    chart.filter(null);
-    dims[dim].filter(null);
-  }
-
-  function toggle_qualified(dim, chart, min_val, max_val) {
-
-    var qualified = $("#" + dim + "-qualified")[0].checked;
-    if (qualified) {
-      set_range_filter(dim, chart, min_val, max_val);
-    } else {
-      reset_range_filter(dim, chart);
-    }
-  };
-
-  var aggregate_data, usa_projection;
-
-
-  function render_page(player_type) {
-    
-    var average_ratio_accessor = function(d) { 
-        
-        // gaurd against dividing by zero
-        return (d.sums_denom === 0) ? 0 : d.sums_num / d.sums_denom;
-    };
-
-    var average_accessor = function(d) { 
-
-      // gaurd against dividing by zero
-      return (d.count === 0) ? 0: d.sums / d.count;
-    };
-
-    var avgNullsAccessor = function(d) { 
-      // gaurd against dividing by zero
-      return (d.count_non_null === 0) ? 0: d.sums / d.count_non_null;
-    };
-
-    function decimal_bucket(num, nearest) {
-
-      var scalar = Math.round(nearest * 100);
-      return d3.round(Math.round(num/scalar*100)/100*scalar,2)
-    };
-
-
-    function chartElement(dim_name, chart_name, control_elem) {
-
-      return makeChartElement(dim_name, chart_name, false, control_elem);
-    };
-
-    function annotatedChartElement(dim_name, chart_name, control_elem) {
-
-      return makeChartElement(dim_name, chart_name, true, control_elem);
-    };
-
-    function makeChartElement(dim_name, chart_name, metric_annotations, control_elem) {
-
-      var chart_name = typeof chart_name !== 'undefined' ? chart_name : dim_name;
-
-      var chart_name_id = dim_name.replace(/ /g, "");
-
-      var chart_wrapper = $('<div></div>').addClass("dc-wrapper");
-      var chart_element = $('<div></div>').attr("id", chart_name_id);
-
-      if (metric_annotations) {
-        chart_element
-          .append($("<div></div>").css({"position": "absolute", "display": "inline", "margin": "20px 0 0 40px"})
-            .append($('<span></span>').addClass('reset').css("display", "none")
-              .text("range: ")
-              .append($("<span></span>").addClass("filter"))
-            )
-            .append($('<a></a>').addClass("reset")
-              .attr("href", "javascript:" + chart_name_id + "Chart.filterAll();dc.redrawAll();")
-              .css("display", "none")
-              .text("reset")
-            )
-          )
-          .append($('<span></span>').text(chart_name))
-          .append($('<div class="nd-container"></div>')
-            .css({
-                  "float": "right"
-            })
-          )
-      } else {
-
-        chart_element.append($('<span></span>').text(chart_name));
-        chart_element
-          .append($("<div></div>").css({"display": "inline-block"})
-            .append($('<span></span>').addClass('reset').css("display", "none")
-              .text("range: ")
-              .append($("<span></span>").addClass("filter"))
-            )
-            .append($('<a></a>').addClass("reset")
-              .attr("href", "javascript:" + chart_name_id + "Chart.filterAll();dc.redrawAll();")
-              .css("display", "none")
-              .text("reset")
-            )
-          )
-
-
-      }
-
-      chart_element
-        .append($('<div></div>').addClass("clearfix"));
-
-
-      chart_wrapper.append(chart_element)
-      if (control_elem) {
-         chart_wrapper.append(control_elem);
-      }
-
-      return chart_wrapper;
-    };
-
-    function set_scatter_dim() {
-      var scatter_x_var = $("#x-var").val();
-      var scatter_y_var = $("#y-var").val();
-      var new_dim = ndx.dimension(function(d) { return [d[scatter_x_var], d[scatter_y_var]]; })
-      dims.regression = new_dim;
-      return dims.regression;
-    };
-
-    function set_scatter_group() {
-      var scatter_x_var = $("#x-var").val();
-      var scatter_y_var = $("#y-var").val();
-      var new_group = dims.regression.group().reduceSum(function(d) { return d[scatter_x_var] });
-      groups.regression = new_group;
-      return groups.regression;
-    };
-
-    var rows, data_src;
-
-    var timers = [];
-    var top_start = new Date();
-
-    $("#global-rows").html('')
-    $("#timeseries-chart-rows").html('')
-    $("#dashboard-stats tbody").html('')
-    $("#dashboard-stats").toggle();
-
-    toggle_loading();
-    
-
-    $("#chart-rows").html('')
-
-    /*
-    var scatter_x_var = $("#x-var").val();
-    var scatter_y_var = $("#y-var").val();
-    */
-
-    // container for data-count
-    $("#title-block")
-      .append(
-        $("<div></div>")
-          .attr("id", "chart-rows-control")
-          .css(
-            {
-              display: "none",
-              position: "absolute", bottom: "10px", left: "350px"
-            }
-          )
-          .append(
-            $("<div></div>")
-              .css("float", "none")
-              .addClass("data-count")
-              .append($("<span></span>").addClass("filter-count"))
-              .append(" stints selected out of ")
-              .append($("<span></span>").addClass("total-count"))
-          )
-    )
-  
-    var start = new Date();
-
-    var endpoint = '/data_' + player_type.toLowerCase();
-    d3.json(endpoint, function(error, rows) {
-      if (error) {
-        console.warn(error)
-        toggle_loading();
-        return
-      }
-    // d3.tsv(data_path + data_src, function(error, rows) {
-      console.log("load_data: " + (new Date() - start));
-      timers.push(new Date() - start)
-
-      // Coerce if using tsv (untyped)
-      rows.forEach(function(d, i) {
-        // d.year = parseInt(d.year);
-        // d.ab = parseInt(d.ab);
-        // d.h = parseInt(d.h);
-        // d.bb = parseInt(d.bb);
-        // d.pa = parseInt(d.pa);
-        // d.hbp = parseInt(d.hbp);
-        // d.hr = parseInt(d.hr);
-        // d.r = parseInt(d.r);
-        // d.rbi = parseInt(d.rbi);
-        // d.sb = parseInt(d.sb);
-        if (player_type == 'Batting') {
-          d.tob = d.h + d.bb + d.hbp;
-          d.ba = d.ab > 0 ? d.h / d.ab : NaN
-          d.obp = d.pa > 0 ? d.tob / d.pa : NaN
+    $.ajax({
+      url: "get_config",
+        "beforeSend": function() {
+          var client_version = 'v0.1.0';
+            $("#vers")
+            .attr('data-version', client_version)
+            .text(client_version)
+          ;
         }
-        if (player_type == 'Pitching') {
-          d.wh = d.h + d.bb;
-          d.whip = d.ip > 0 ? d.h / d.ip : NaN;
-          d.er9 = 9*d.er;
-          d.era = d.ip > 0 ? d.er9 / d.ip: NaN;
-          
-        }
+    }).done(function(d) {
+      var collected_params = {};
+      window.location.search.replace("?", "").split("&").forEach(function(item) { 
+        var pieces = item.split("="); 
+        if (pieces.length == 2) {
+          collected_params[pieces[0]] = pieces[1]
+        }; 
       });
 
-      // Create the crossfilter
-      ndx = crossfilter(rows);
-      all = ndx.groupAll();
-      start = new Date();
+      var toggle_loading = function() {
+        $(".loading").toggle();
+        $("#title").toggleText("(Running)", "SABRfilter")
 
-      // Create dimensions
-
-      dims = {
-        year: ndx.dimension(function(d) { return d.year; }),
-        team: ndx.dimension(function(d) { return d.team }),
-        league: ndx.dimension(function(d) { return d.lgid }),
-        pos: ndx.dimension(function(d) { return d.pos == 'NA' ? '?' : d.pos}),
       }
 
-      var battingdims = function() {
-        return {
-          ab: ndx.dimension(function(d) { return d.ab }),
-          h: ndx.dimension(function(d) { return d.h }),
-          pa: ndx.dimension(function(d) { return d.pa }),
-          ba: ndx.dimension(function(d) { return d.ba }),
-          obp: ndx.dimension(function(d) { return d.obp }),
-          hr: ndx.dimension(function(d) { return d.hr }),
-          r: ndx.dimension(function(d) { return d.r }),
-          rbi: ndx.dimension(function(d) { return d.rbi }),
-          sb: ndx.dimension(function(d) { return d.sb }),
-        }
-      }
+    var disable_logging = function() {
+      console.log = function() {}
+    }
 
-      var pitchingdims = function() {
-        return {
-          ip: ndx.dimension(function(d) { return d.ip }),
-          w: ndx.dimension(function(d) { return d.w }),
-          era: ndx.dimension(function(d) { return d.era }),
-          whip: ndx.dimension(function(d) { return d.whip }),
-          so: ndx.dimension(function(d) { return d.so }),
-          gs: ndx.dimension(function(d) { return d.gs }),
-          sv: ndx.dimension(function(d) { return d.sv })
-        }
-      }
+    // "Like d3.time.format, but faster" 
+    // per view-source:http://square.github.io/crossfilter/
+    function parseDate(d) {
 
-      if (player_type == 'Batting') {
-        $.each(battingdims(), function(i, item) {
-          dims[i] = item;
-        })
-      } 
+      return new Date(
+          d.substring(0, 4),
+          d.substring(5, 7) - 1,
+          d.substring(8, 10),
+          d.substring(11, 13),
+          d.substring(14, 16));
+    };
 
-      if (player_type == 'Pitching') {
-        $.each(pitchingdims(), function(i, item) {
-          dims[i] = item;
-        })
-      }
-      
-      console.log("make dimensions: " + (new Date() - start))
-      timers.push(new Date() - start)
 
-      start = new Date();
+    // Various formatters.
+    var formatNumberGeneral = d3.format("d"),
+        formatNumber = d3.format(",d"),
+        formatPrec0 = d3.format(".0f"),
+        formatPrec1 = d3.format(".1f"),
+        formatPrec2 = d3.format(".2f"),
+        formatPrec3 = d3.format(".3f"),
+        formatChange = d3.format("+,d"),
+        formatPercent2 = d3.format(".2%"),
+        formatPercent1 = d3.format(".1%"),
+        formatPercent0 = d3.format("%"),
+        formatDate = d3.time.format("%B %d, %Y"),
+        formatDateShort = d3.time.format("%b. %d, %Y"),
+        formatTime = d3.time.format("%I:%M %p");
 
-      // Create relevant groups and top-level groupAll
-      groups = {
-        teams: dims.team.group(),
-        years: dims.year.group(),
-        leagues: dims.league.group(function(d) { return d; }),
-        poss: dims.pos.group(function(d) { return d; }),
+    var formatSlashStat = function(n) {
+        return d3.format(".3f")(n).replace(/0\./, ".") 
+    };
+
+    var ratingsChart;
+
+    disable_logging();
+
+    var is_not_nan = function(d) { return !(isNaN(d))};
+
+    // http://stackoverflow.com/questions/5584010/jquery-toggle-html-text
+    $.fn.toggleText = function(t1, t2){
+      if (this.text() == t1) {
+        this.text(t2);
+      } else {
+        this.text(t1);
       };
       
-      var batting_groups = function() {
-        return {
-            abs: dims.ab.group(function(d) { return Math.floor(d  / 25) * 25; }),
-            hs: dims.h.group(function(d) { return Math.floor(d / 5) * 5; }),
-            bas: dims.ba.group(function(d) { return decimal_bucket(d,0.01); }),
-            pas: dims.pa.group(function(d) { return Math.floor(d  / 25) * 25; }),
-            obps: dims.obp.group(function(d) { return decimal_bucket(d,0.01); }),
-            hrs: dims.hr.group(function(d) { return Math.floor(d  / 5) * 5; }),
-            rs: dims.r.group(function(d) { return Math.floor(d  / 5) * 5; }),
-            rbis: dims.rbi.group(function(d) { return Math.floor(d  / 5) * 5; }),
-            sbs: dims.sb.group(function(d) { return Math.floor(d  / 5) * 5; })
-          }
-      };
+      return this;
+    };
 
-      var pitching_groups = function() {
-        return {
-            ips: dims.ip.group(function(d) { return Math.floor(d  / 10) * 10; }),
-            sos: dims.so.group(function(d) { return Math.floor(d  / 10) * 10; }),
-            ws: dims.w.group(function(d) { return d; }),
-            gss: dims.gs.group(function(d) { return d; }),
-            svs: dims.sv.group(function(d) { return d; }),
-            whips: dims.whip.group(function(d) { return decimal_bucket(d,0.1); }),
-            eras: dims.era.group(function(d) { return decimal_bucket(d,0.1); }),
-          }
 
-      }
-
-      if (player_type == 'Batting') {
-        $.each(batting_groups(), function(i, item) {
-          groups[i] = item;
-        })
-      } 
-
-      if (player_type == 'Pitching') {
-        $.each(pitching_groups(), function(i, item) {
-          groups[i] = item;
-        })
-      }
-
+    // weighted average of derived ratio (e.g. ratings / users_count )
+    function reduceAddAvgRatio(attr_num, attr_denom) {
+      return function(p,v) {
       
-      console.log("make groups: " + (new Date() - start))
-      timers.push(new Date() - start)
+        ++p.count_num;
+        ++p.count_denom;
+        p.sums_num += v[attr_num];
+        p.sums_denom += v[attr_denom];
 
-      var batting_elems = function() {
-        return [
-          annotatedChartElement("ab", "At Bats"),
-          annotatedChartElement(
-            "pa",
-            "Plate Appearances",
-            $("<div></div>")
-              .append(
-                $("<input></input>")
-                  .attr("type", "checkbox")
-                  .attr("checked", true)
-                  .attr("id", "pa-qualified")
-                  .on('click', function() {
-                    toggle_qualified('pa', paChart, 503);
-                    dc.renderAll();
-                  })
-              )
-              .append($('<span></span>').text("Qualified (503+ PA)"))
-          ),
-          
-          annotatedChartElement("hr", "Home Runs"),
-          annotatedChartElement("sb", "Stolen Bases"),
-          annotatedChartElement("rbi", "RBIs"),
-          annotatedChartElement("ba", "Batting Average"),
-          annotatedChartElement("obp", "On-Base Percentage"),
-          annotatedChartElement("r", "Runs"),
-        ];
+        return p;
       };
 
-      var pitching_elems = function() {
-        return [
-          annotatedChartElement("gs", "Games Started"),
-          annotatedChartElement(
-            "ip",
-            "Innings Pitched",
-            $("<div></div>")
-              .append(
-                $("<input></input>")
-                  .attr("type", "checkbox")
-                  .attr("checked", false)
-                  .attr("id", "ip-qualified")
-                  .on('click', function() {
-                    toggle_qualified('ip', ipChart, 162);
-                    dc.renderAll();
-                  })
-              )
-              .append($('<span></span>').text("Qualified (162+ IP)"))
-          ),
-          annotatedChartElement("so", "Strike Outs"),
-          annotatedChartElement("w", "Wins"),
-          annotatedChartElement("sv", "Saves"),
-          annotatedChartElement("era", "ERA"),
-          annotatedChartElement("whip", "WHIP"),
-        ];
+
+    };
+
+    function reduceRemoveAvgRatio(attr_num, attr_denom) {
+      return function(p,v) {
+
+        --p.count_num;
+        --p.count_denom;
+        p.sums_num -= v[attr_num];
+        p.sums_denom -= v[attr_denom];
+
+        return p;
       };
+    };
 
-      if (player_type == 'Batting') {
-        var chart_elems = batting_elems();
-      } else if (player_type == 'Pitching') {
-        var chart_elems = pitching_elems();
-      }
-
-      $("#global-rows")
-        .append($("<div></div>").addClass("section-header")
-          .append($("<h2></h2>").text(player_type))
-          .append($("<span></span>").addClass("toggler").text("(hide)"))
-          .append($("<span></span>").addClass("player-type-toggler")
-            .text("(" + function () { return player_type == "Batting" ? "Pitching" : "Batting" }() + ")"))
-        )
-        .append($("<div></div>").addClass("chart-row")
-          .append($("<div></div>").addClass("chart-col")
-            .append(chartElement("league", "League"))
-            .append(chart_elems[0])
-            .append(chart_elems[1])
-            .append(chart_elems[2])
-            .append(chart_elems[3])
-          )
-          .append($("<div></div>").addClass("chart-col")
-            
-            .append(chartElement("year", "Year"))
-            .append(chart_elems[4])
-            .append(chart_elems[5])
-            .append(chart_elems[6])
-            .append(chart_elems[7])
-          )
-          .append($("<div></div>").addClass("chart-col")
-            .append(chartElement("pos", "Position"))
-            .append(chartElement("team", "Team"))
-          )
-        )
-
-      $("#timeseries-chart-rows").css({"border-top": "1px dashed gray"})
-        // .append($("<div></div>").addClass("section-header")
-        //   .append($("<h2></h2>").text("Aggregate Charts"))
-        //   .append($("<span></span>").addClass("toggler").text("(hide)"))
-        // )
-
-      $("#chart-rows").css({"border-top": "1px dashed gray"})
-        // .append($("<div></div>").addClass("section-header")
-        //   .append($("<h2></h2>").text("Ratings Detail (one week, sampled)"))
-        //   .append($("<span></span>").addClass("toggler").text("(hide)"))
-        // )
-        // .append($("<div></div>").addClass("chart-row")
-        //   .append(chartElement("decade"))
-          
-        // )
-        // .append($("<div></div>").addClass("chart-row")
-        //   .append(chartElement("at bats"))
-        // )
-        // .append($("<div></div>").addClass("chart-row")
-        //   .append(chartElement("games started"))
-        // )
-
-      /*
-      $("#scatter-chart")
-      .append($("<div></div>").addClass("section-header")
-        .append($("<h2></h2>").text("Scatterplot"))
-        .append($("<span></span>").addClass("toggler").text("(hide)"))
-      )
-      */
-
-      /*
-      if ($("#include-scatter").attr("checked") == "checked") {
-
-        dims.regression = ndx.dimension(function(d) { return [d[scatter_x_var], d[scatter_y_var]]; })
-        groups.regression = dims.regression.group().reduceSum(function(d) { return d[scatter_x_var] });
-
-        scatterChart = dc.scatterPlot("#scatter")
-          .width(768).height(480)
-          .x(d3.scale.linear()
-              .domain([18,65])
-          )
-          .brushOn(false)
-          .symbolSize(4)
-          .elasticY(true)
-          .elasticX(true)
-          //.clipPadding(10)
-          .dimension(dims.regression)
-          .group(groups.regression)
-        ;
+    function reduceInitAvgRatio() {
+      return {
+        count_num:0, sums_num:0, 
+        count_denom:0, sums_denom:0, 
       };
-      */
+    };
 
-      function make_row_chart(dim, options) {
 
-        var default_orderer = function(d) { return -d.value };
-        
-        var group = options && options['group'] || dim + 's';
-        var xFormatter = options && options['xFormatter'] || formatNumberGeneral;
-        var w = options && options['w'] || 350;
-        var h = options && options['h'] || 225;
-        var orderer = options && options['orderer'] || default_orderer;
+    // https://github.com/dc-js/dc.js/wiki/FAQ
+    function reduceAddAvg(attr) {
+      return function(p,v) {
+        ++p.count
+        p.sums += v[attr];
 
-        rowChart = dc.rowChart("#" + dim)
-          .width(w).height(h)
-          .dimension(dims[dim])
-          .group(groups[group])
-          .elasticX(true)
-          .valueAccessor(function(d) { return d.value })
-          .ordering(orderer)
-        ;
-        
-        rowChart.xAxis().tickFormat(xFormatter);
-
-        return rowChart;
-
+        return p;
       };
+    };
 
-      function make_pie_chart(dim, options) {
+    function reduceRemoveAvg(attr) {
+      return function(p,v) {
+        --p.count
+        p.sums -= v[attr];
 
-        var group = options && options['group'] || dim + 's';
-
-        var pie = dc.pieChart("#" + dim)
-          .radius(75)
-          .innerRadius(10)
-          .height(150).width(250)
-          .dimension(dims[dim])
-          .group(groups[group])
-          .label(function (d) {
-                if (pie.hasFilter() && ! pie.hasFilter(d.key)) {
-                    return d.key + ' 0%';
-                }
-                var label = d.key;
-                if (all.value()) {
-                    label += ' ' + Math.floor(d.value / all.value() * 100) + '%';
-                }
-                return label;
-            })
-          ;
-
-        return pie;
-
+        return p;
       };
+    };
 
-      function make_hist_chart(dim, options) {
+    function reduceInitAvg() {
+      return {
+        count:0, sums:0, 
+      };
+    };
 
-        var defaultFilterPrinter = function(filters) {
-          var filter = filters[0], s='';
-          s += (filter[0] + ' -> ' + filter[1]);
-          return s;
+    function reduceAddAvgNulls(attr) {
+      return function(p,v) {
+        ++p.count;
+        if (is_not_nan(v[attr])) {
+          p.sums += v[attr];
+          ++p.count_non_null;
         }
 
-        var defaultValueAccessor = function(d) { return d.value };
+        return p;
+      };
+    };
 
-        var group = options && options['group'] || dim + 's';
-        var xFormatter = options && options['xFormatter'] || function(n) { return formatNumber(parseInt(n))};
-        var yAxisFormatter = options && options['yAxisFormatter'] || formatNumber;
-        var filterPrinter = options && options['filterPrinter'] || defaultFilterPrinter;
-        var valueAccessor = options && options['valueAccessor'] || defaultValueAccessor;
-        var w = options && options['w'] || 350;
-        var h = options && options['h'] || 150;
-        var rounder = options && options['rounder'] || dc.round.ceil;
-        var grouper = options && options['grouper'] || groups[group];
-        var elasticY = options && options['elasticY'] || true;
-        var elasticX = options && options['elasticX'] || false;
-        var filter = options && options['filter'] || null;
-
-        var bins = groups[group].top(Infinity).map(function(item) {
-          return item.key;
-        }).sort(function(a,b) {
-          return a - b;
-        });
-        var size = bins.length;
-        
-        // TODO: default these to 10th / 90th percentile for numeric data
-        var domain_min = options && options['domain_min'] || bins[0];
-        var domain_max = options && options['domain_max'] || bins[size-1];
-        // size bins to min and max in case the min and max are not based on actual size.
-        var num_bins = bins.filter(function(b) {
-          return b >= domain_min && b <= domain_max;
-        }).length;
-
-        // console.log('>', dim, size, num_bins, bins[0], bins[size-1], domain_min, domain_max)
-        var hist = dc.barChart("#" + dim)
-          .width(w).height(h)
-          .elasticY(elasticY)
-          .elasticX(elasticX)
-          .xAxisPadding(10)
-          .round(rounder)
-          .margins({top: 10, right: 50, bottom: 20, left: 40})
-          .xUnits(function() { return num_bins })
-          // .centerBar(true)
-          .filter(filter)
-          .x(d3.scale.linear()
-            .domain([
-              domain_min,
-              domain_max
-            ])
-          )
-          .dimension(dims[dim])
-          .group(grouper)
-          .valueAccessor(valueAccessor)
-          .filterPrinter(filterPrinter)
-        ;
-
-        hist.yAxis().tickFormat(yAxisFormatter)
-        hist.xAxis().tickFormat(xFormatter)
-
-        var make_number_display = function(stat, numer, denom) {
-          $('#' + dim).find(".nd-container")
-            .append(
-              $('<div></div>')
-                .css({
-                  "margin-right": "20px",
-                  "display": "block"
-                })
-                .text(stat + ": ")
-                .append($("<span></span>")
-                  .attr("id", "nd" + stat + "-" + dim)
-                )
-            )
-
-          var numer = options["numer"];
-          var denom = options["denom"]
-
-          var groupers = {
-            "Avg": function() {
-                  if (numer && denom) {
-
-                    return function(g) {
-                      return g.reduce(
-                        reduceAddAvgRatio(numer, denom),
-                        reduceRemoveAvgRatio(numer, denom),
-                        reduceInitAvgRatio
-                      )
-                    }
-                  } else {
-                    return function(g) {
-
-                      return g.reduce(
-                        reduceAddAvgNulls(dim),
-                        reduceRemoveAvgNulls(dim),
-                        reduceInitAvgNulls
-                      )
-                    }
-                  }
-                }(),
-            "Sum": function(g) { return g.reduceSum(function(d) { return d[dim] }) }
-          }
-
-          var accessors = {
-            "Avg": function() {
-                  if (numer && denom) {
-                    return average_ratio_accessor;
-                  } else {
-                    return avgNullsAccessor;
-                  }
-                }(),
-            "Sum": function(d) { return d }
-          }
-
-
-          var ndGrouper = groupers[stat];
-          var ndAccessor = accessors[stat];
-
-          dc.numberDisplay("#nd" + stat + "-" + dim)
-            .formatNumber(xFormatter)
-            .group(ndGrouper(ndx.groupAll()))
-            .valueAccessor(ndAccessor)
+    function reduceRemoveAvgNulls(attr) {
+      return function(p,v) {
+        --p.count;
+        if (is_not_nan(v[attr])) {
+          p.sums -= v[attr];
+          --p.count_non_null;
         };
 
-        var annotations = options['annotations'] || ["Avg"];
+        return p;
+      };
+    };
 
-        annotations.forEach(function(item) {
-          make_number_display(item);
-        })
+    function reduceInitAvgNulls() {
+      return {
+        count:0, count_non_null: 0, sums:0, 
+      };
+    };
 
-        return hist
+    function set_range_filter(dim, chart, min_val, max_val) {
+      var max_val = max_val || dims[dim].top(1)[0][dim];
+      var group = dim + 's';
+      chart.filter(dc.filters.RangedFilter(min_val, max_val));
+      dims[dim].filter([min_val, max_val]);
+    };
 
+    function reset_range_filter(dim, chart) {
+      chart.filter(null);
+      dims[dim].filter(null);
+    }
+
+    function toggle_qualified(dim, chart, min_val, max_val) {
+
+      var qualified = $("#" + dim + "-qualified")[0].checked;
+      if (qualified) {
+        set_range_filter(dim, chart, min_val, max_val);
+      } else {
+        reset_range_filter(dim, chart);
       }
+    };
 
-      start = new Date();
+    var aggregate_data, usa_projection;
 
-      var pos_order = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'P', '?'];
 
-      yearChart = make_hist_chart(
-        "year", 
-        {
-          'xFormatter': formatNumberGeneral,
-          'domain_max': 2017,
+    function render_page(player_type) {
+      
+      var average_ratio_accessor = function(d) { 
+          
+          // gaurd against dividing by zero
+          return (d.sums_denom === 0) ? 0 : d.sums_num / d.sums_denom;
+      };
+
+      var average_accessor = function(d) { 
+
+        // gaurd against dividing by zero
+        return (d.count === 0) ? 0: d.sums / d.count;
+      };
+
+      var avgNullsAccessor = function(d) { 
+        // gaurd against dividing by zero
+        return (d.count_non_null === 0) ? 0: d.sums / d.count_non_null;
+      };
+
+      function decimal_bucket(num, nearest) {
+
+        var scalar = Math.round(nearest * 100);
+        return d3.round(Math.round(num/scalar*100)/100*scalar,2)
+      };
+
+
+      function chartElement(dim_name, chart_name, control_elem) {
+
+        return makeChartElement(dim_name, chart_name, false, control_elem);
+      };
+
+      function annotatedChartElement(dim_name, chart_name, control_elem) {
+
+        return makeChartElement(dim_name, chart_name, true, control_elem);
+      };
+
+      function makeChartElement(dim_name, chart_name, metric_annotations, control_elem) {
+
+        var chart_name = typeof chart_name !== 'undefined' ? chart_name : dim_name;
+
+        var chart_name_id = dim_name.replace(/ /g, "");
+
+        var chart_wrapper = $('<div></div>').addClass("dc-wrapper");
+        var chart_element = $('<div></div>').attr("id", chart_name_id);
+
+        if (metric_annotations) {
+          chart_element
+            .append($("<div></div>").css({"position": "absolute", "display": "inline", "margin": "20px 0 0 40px"})
+              .append($('<span></span>').addClass('reset').css("display", "none")
+                .text("range: ")
+                .append($("<span></span>").addClass("filter"))
+              )
+              .append($('<a></a>').addClass("reset")
+                .attr("href", "javascript:" + chart_name_id + "Chart.filterAll();dc.redrawAll();")
+                .css("display", "none")
+                .text("reset")
+              )
+            )
+            .append($('<span></span>').text(chart_name))
+            .append($('<div class="nd-container"></div>')
+              .css({
+                    "float": "right"
+              })
+            )
+        } else {
+
+          chart_element.append($('<span></span>').text(chart_name));
+          chart_element
+            .append($("<div></div>").css({"display": "inline-block"})
+              .append($('<span></span>').addClass('reset').css("display", "none")
+                .text("range: ")
+                .append($("<span></span>").addClass("filter"))
+              )
+              .append($('<a></a>').addClass("reset")
+                .attr("href", "javascript:" + chart_name_id + "Chart.filterAll();dc.redrawAll();")
+                .css("display", "none")
+                .text("reset")
+              )
+            )
+
+
         }
-      );
 
-      teamChart = make_row_chart("team", {'h': 550});
-      leagueChart = make_pie_chart("league");
-      posChart = make_row_chart("pos", {orderer: function(d) { return pos_order.indexOf(d.key)}});
+        chart_element
+          .append($('<div></div>').addClass("clearfix"));
+
+
+        chart_wrapper.append(chart_element)
+        if (control_elem) {
+           chart_wrapper.append(control_elem);
+        }
+
+        return chart_wrapper;
+      };
+
+      function set_scatter_dim() {
+        var scatter_x_var = $("#x-var").val();
+        var scatter_y_var = $("#y-var").val();
+        var new_dim = ndx.dimension(function(d) { return [d[scatter_x_var], d[scatter_y_var]]; })
+        dims.regression = new_dim;
+        return dims.regression;
+      };
+
+      function set_scatter_group() {
+        var scatter_x_var = $("#x-var").val();
+        var scatter_y_var = $("#y-var").val();
+        var new_group = dims.regression.group().reduceSum(function(d) { return d[scatter_x_var] });
+        groups.regression = new_group;
+        return groups.regression;
+      };
+
+      var rows, data_src;
+
+      var timers = [];
+      var top_start = new Date();
+
+      $("#global-rows").html('')
+      $("#timeseries-chart-rows").html('')
+      $("#dashboard-stats tbody").html('')
+      $("#dashboard-stats").toggle();
+
+      toggle_loading();
+      
+
+      $("#chart-rows").html('')
+
+      /*
+      var scatter_x_var = $("#x-var").val();
+      var scatter_y_var = $("#y-var").val();
+      */
+
+      // container for data-count
+      $("#title-block")
+        .append(
+          $("<div></div>")
+            .attr("id", "chart-rows-control")
+            .css(
+              {
+                display: "none",
+                position: "absolute", bottom: "10px", left: "375px"
+              }
+            )
+            .append(
+              $("<div></div>")
+                .css("float", "none")
+                .addClass("data-count")
+                .append($("<span></span>").addClass("filter-count"))
+                .append(" stints selected out of ")
+                .append($("<span></span>").addClass("total-count"))
+            )
+      )
+    
+      var start = new Date();
+
+      var endpoint = '/data_' + player_type.toLowerCase();
+      d3.json(endpoint, function(error, rows) {
+        if (error) {
+          console.warn(error)
+          toggle_loading();
+          return
+        }
+      // d3.tsv(data_path + data_src, function(error, rows) {
+        console.log("load_data: " + (new Date() - start));
+        timers.push(new Date() - start)
+
+        // Coerce if using tsv (untyped)
+        rows.forEach(function(d, i) {
+          // d.year = parseInt(d.year);
+          // d.ab = parseInt(d.ab);
+          // d.h = parseInt(d.h);
+          // d.bb = parseInt(d.bb);
+          // d.pa = parseInt(d.pa);
+          // d.hbp = parseInt(d.hbp);
+          // d.hr = parseInt(d.hr);
+          // d.r = parseInt(d.r);
+          // d.rbi = parseInt(d.rbi);
+          // d.sb = parseInt(d.sb);
+          if (player_type == 'Batting') {
+            d.tob = d.h + d.bb + d.hbp;
+            d.ba = d.ab > 0 ? d.h / d.ab : NaN
+            d.obp = d.pa > 0 ? d.tob / d.pa : NaN
+          }
+          if (player_type == 'Pitching') {
+            d.wh = d.h + d.bb;
+            d.whip = d.ip > 0 ? d.h / d.ip : NaN;
+            d.er9 = 9*d.er;
+            d.era = d.ip > 0 ? d.er9 / d.ip: NaN;
+            
+          }
+        });
+
+        // Create the crossfilter
+        window.rows = rows;
+        ndx = crossfilter(rows);
+        all = ndx.groupAll();
+        start = new Date();
+
+        // Create dimensions
+
+        dims = {
+          year: ndx.dimension(function(d) { return d.year; }),
+          team: ndx.dimension(function(d) { return d.team }),
+          league: ndx.dimension(function(d) { return d.lgid }),
+          pos: ndx.dimension(function(d) { return d.pos == 'NA' ? '?' : d.pos}),
+        }
+
+        var battingdims = function() {
+          return {
+            ab: ndx.dimension(function(d) { return d.ab }),
+            h: ndx.dimension(function(d) { return d.h }),
+            pa: ndx.dimension(function(d) { return d.pa }),
+            ba: ndx.dimension(function(d) { return d.ba }),
+            obp: ndx.dimension(function(d) { return d.obp }),
+            hr: ndx.dimension(function(d) { return d.hr }),
+            r: ndx.dimension(function(d) { return d.r }),
+            rbi: ndx.dimension(function(d) { return d.rbi }),
+            sb: ndx.dimension(function(d) { return d.sb }),
+          }
+        }
+
+        var pitchingdims = function() {
+          return {
+            ip: ndx.dimension(function(d) { return d.ip }),
+            w: ndx.dimension(function(d) { return d.w }),
+            era: ndx.dimension(function(d) { return d.era }),
+            whip: ndx.dimension(function(d) { return d.whip }),
+            so: ndx.dimension(function(d) { return d.so }),
+            gs: ndx.dimension(function(d) { return d.gs }),
+            sv: ndx.dimension(function(d) { return d.sv })
+          }
+        }
+
+        if (player_type == 'Batting') {
+          $.each(battingdims(), function(i, item) {
+            dims[i] = item;
+          })
+        } 
+
+        if (player_type == 'Pitching') {
+          $.each(pitchingdims(), function(i, item) {
+            dims[i] = item;
+          })
+        }
         
-      if (player_type == 'Batting') {
-        abChart = make_hist_chart(
-          "ab",
+        console.log("make dimensions: " + (new Date() - start))
+        timers.push(new Date() - start)
+
+        start = new Date();
+
+        // Create relevant groups and top-level groupAll
+        groups = {
+          teams: dims.team.group(),
+          years: dims.year.group(),
+          leagues: dims.league.group(function(d) { return d; }),
+          poss: dims.pos.group(function(d) { return d; }),
+        };
+        
+        var batting_groups = function() {
+          return {
+              abs: dims.ab.group(function(d) { return Math.floor(d  / 25) * 25; }),
+              hs: dims.h.group(function(d) { return Math.floor(d / 5) * 5; }),
+              bas: dims.ba.group(function(d) { return decimal_bucket(d,0.01); }),
+              pas: dims.pa.group(function(d) { return Math.floor(d  / 25) * 25; }),
+              obps: dims.obp.group(function(d) { return decimal_bucket(d,0.01); }),
+              hrs: dims.hr.group(function(d) { return Math.floor(d  / 5) * 5; }),
+              rs: dims.r.group(function(d) { return Math.floor(d  / 5) * 5; }),
+              rbis: dims.rbi.group(function(d) { return Math.floor(d  / 5) * 5; }),
+              sbs: dims.sb.group(function(d) { return Math.floor(d  / 5) * 5; })
+            }
+        };
+
+        var pitching_groups = function() {
+          return {
+              ips: dims.ip.group(function(d) { return Math.floor(d  / 10) * 10; }),
+              sos: dims.so.group(function(d) { return Math.floor(d  / 10) * 10; }),
+              ws: dims.w.group(function(d) { return d; }),
+              gss: dims.gs.group(function(d) { return d; }),
+              svs: dims.sv.group(function(d) { return d; }),
+              whips: dims.whip.group(function(d) { return decimal_bucket(d,0.1); }),
+              eras: dims.era.group(function(d) { return decimal_bucket(d,0.1); }),
+            }
+
+        }
+
+        if (player_type == 'Batting') {
+          $.each(batting_groups(), function(i, item) {
+            groups[i] = item;
+          })
+        } 
+
+        if (player_type == 'Pitching') {
+          $.each(pitching_groups(), function(i, item) {
+            groups[i] = item;
+          })
+        }
+
+        
+        console.log("make groups: " + (new Date() - start))
+        timers.push(new Date() - start)
+
+        var batting_elems = function() {
+          return [
+            annotatedChartElement("ab", "At Bats"),
+            annotatedChartElement(
+              "pa",
+              "Plate Appearances",
+              $("<div></div>")
+                .append(
+                  $("<input></input>")
+                    .attr("type", "checkbox")
+                    .attr("checked", true)
+                    .attr("id", "pa-qualified")
+                    .on('click', function() {
+                      toggle_qualified('pa', paChart, 503);
+                      dc.renderAll();
+                    })
+                )
+                .append($('<span></span>').text("Qualified (503+ PA)"))
+            ),
+            
+            annotatedChartElement("hr", "Home Runs"),
+            annotatedChartElement("sb", "Stolen Bases"),
+            annotatedChartElement("rbi", "RBIs"),
+            annotatedChartElement("ba", "Batting Average"),
+            annotatedChartElement("obp", "On-Base Percentage"),
+            annotatedChartElement("r", "Runs"),
+          ];
+        };
+
+        var pitching_elems = function() {
+          return [
+            annotatedChartElement("gs", "Games Started"),
+            annotatedChartElement(
+              "ip",
+              "Innings Pitched",
+              $("<div></div>")
+                .append(
+                  $("<input></input>")
+                    .attr("type", "checkbox")
+                    .attr("checked", false)
+                    .attr("id", "ip-qualified")
+                    .on('click', function() {
+                      toggle_qualified('ip', ipChart, 162);
+                      dc.renderAll();
+                    })
+                )
+                .append($('<span></span>').text("Qualified (162+ IP)"))
+            ),
+            annotatedChartElement("so", "Strike Outs"),
+            annotatedChartElement("w", "Wins"),
+            annotatedChartElement("sv", "Saves"),
+            annotatedChartElement("era", "ERA"),
+            annotatedChartElement("whip", "WHIP"),
+          ];
+        };
+
+        if (player_type == 'Batting') {
+          var chart_elems = batting_elems();
+        } else if (player_type == 'Pitching') {
+          var chart_elems = pitching_elems();
+        }
+
+        $("#global-rows")
+          .append($("<div></div>").addClass("section-header")
+            .append($("<h2></h2>").text(player_type))
+            .append($("<span></span>").addClass("toggler").text("(hide)"))
+            .append($("<span></span>").addClass("player-type-toggler")
+              .text("(" + function () { return player_type == "Batting" ? "Pitching" : "Batting" }() + ")"))
+          )
+          .append($("<div></div>").addClass("chart-row")
+            .append($("<div></div>").addClass("chart-col")
+              .append(chartElement("league", "League"))
+              .append(chart_elems[0])
+              .append(chart_elems[1])
+              .append(chart_elems[2])
+              .append(chart_elems[3])
+            )
+            .append($("<div></div>").addClass("chart-col")
+              
+              .append(chartElement("year", "Year"))
+              .append(chart_elems[4])
+              .append(chart_elems[5])
+              .append(chart_elems[6])
+              .append(chart_elems[7])
+            )
+            .append($("<div></div>").addClass("chart-col")
+              .append(chartElement("pos", "Position"))
+              .append(chartElement("team", "Team"))
+            )
+          )
+
+        $("#timeseries-chart-rows").css({"border-top": "1px dashed gray"})
+          // .append($("<div></div>").addClass("section-header")
+          //   .append($("<h2></h2>").text("Aggregate Charts"))
+          //   .append($("<span></span>").addClass("toggler").text("(hide)"))
+          // )
+
+        $("#chart-rows").css({"border-top": "1px dashed gray"})
+          // .append($("<div></div>").addClass("section-header")
+          //   .append($("<h2></h2>").text("Ratings Detail (one week, sampled)"))
+          //   .append($("<span></span>").addClass("toggler").text("(hide)"))
+          // )
+          // .append($("<div></div>").addClass("chart-row")
+          //   .append(chartElement("decade"))
+            
+          // )
+          // .append($("<div></div>").addClass("chart-row")
+          //   .append(chartElement("at bats"))
+          // )
+          // .append($("<div></div>").addClass("chart-row")
+          //   .append(chartElement("games started"))
+          // )
+
+        /*
+        $("#scatter-chart")
+        .append($("<div></div>").addClass("section-header")
+          .append($("<h2></h2>").text("Scatterplot"))
+          .append($("<span></span>").addClass("toggler").text("(hide)"))
+        )
+        */
+
+        /*
+        if ($("#include-scatter").attr("checked") == "checked") {
+
+          dims.regression = ndx.dimension(function(d) { return [d[scatter_x_var], d[scatter_y_var]]; })
+          groups.regression = dims.regression.group().reduceSum(function(d) { return d[scatter_x_var] });
+
+          scatterChart = dc.scatterPlot("#scatter")
+            .width(768).height(480)
+            .x(d3.scale.linear()
+                .domain([18,65])
+            )
+            .brushOn(false)
+            .symbolSize(4)
+            .elasticY(true)
+            .elasticX(true)
+            //.clipPadding(10)
+            .dimension(dims.regression)
+            .group(groups.regression)
+          ;
+        };
+        */
+
+        function make_row_chart(dim, options) {
+
+          var default_orderer = function(d) { return -d.value };
+          
+          var group = options && options['group'] || dim + 's';
+          var xFormatter = options && options['xFormatter'] || formatNumberGeneral;
+          var w = options && options['w'] || 350;
+          var h = options && options['h'] || 225;
+          var orderer = options && options['orderer'] || default_orderer;
+
+          rowChart = dc.rowChart("#" + dim)
+            .width(w).height(h)
+            .dimension(dims[dim])
+            .group(groups[group])
+            .elasticX(true)
+            .valueAccessor(function(d) { return d.value })
+            .ordering(orderer)
+          ;
+          
+          rowChart.xAxis().tickFormat(xFormatter);
+
+          return rowChart;
+
+        };
+
+        function make_pie_chart(dim, options) {
+
+          var group = options && options['group'] || dim + 's';
+
+          var pie = dc.pieChart("#" + dim)
+            .radius(75)
+            .innerRadius(10)
+            .height(150).width(250)
+            .dimension(dims[dim])
+            .group(groups[group])
+            .label(function (d) {
+                  if (pie.hasFilter() && ! pie.hasFilter(d.key)) {
+                      return d.key + ' 0%';
+                  }
+                  var label = d.key;
+                  if (all.value()) {
+                      label += ' ' + Math.floor(d.value / all.value() * 100) + '%';
+                  }
+                  return label;
+              })
+            ;
+
+          return pie;
+
+        };
+
+        function make_hist_chart(dim, options) {
+
+          var defaultFilterPrinter = function(filters) {
+            var filter = filters[0], s='';
+            s += (filter[0] + ' -> ' + filter[1]);
+            return s;
+          }
+
+          var defaultValueAccessor = function(d) { return d.value };
+
+          var group = options && options['group'] || dim + 's';
+          var xFormatter = options && options['xFormatter'] || function(n) { return formatNumber(parseInt(n))};
+          var yAxisFormatter = options && options['yAxisFormatter'] || formatNumber;
+          var filterPrinter = options && options['filterPrinter'] || defaultFilterPrinter;
+          var valueAccessor = options && options['valueAccessor'] || defaultValueAccessor;
+          var w = options && options['w'] || 350;
+          var h = options && options['h'] || 150;
+          var rounder = options && options['rounder'] || dc.round.ceil;
+          var grouper = options && options['grouper'] || groups[group];
+          var elasticY = options && options['elasticY'] || true;
+          var elasticX = options && options['elasticX'] || false;
+          var filter = options && options['filter'] || null;
+
+          var bins = groups[group].top(Infinity).map(function(item) {
+            return item.key;
+          }).sort(function(a,b) {
+            return a - b;
+          });
+          var size = bins.length;
+          
+          // TODO: default these to 10th / 90th percentile for numeric data
+          var domain_min = options && options['domain_min'] || bins[0];
+          var domain_max = options && options['domain_max'] || bins[size-1];
+          // size bins to min and max in case the min and max are not based on actual size.
+          var num_bins = bins.filter(function(b) {
+            return b >= domain_min && b <= domain_max;
+          }).length;
+
+          // console.log('>', dim, size, num_bins, bins[0], bins[size-1], domain_min, domain_max)
+          var hist = dc.barChart("#" + dim)
+            .width(w).height(h)
+            .elasticY(elasticY)
+            .elasticX(elasticX)
+            .xAxisPadding(10)
+            .round(rounder)
+            .margins({top: 10, right: 50, bottom: 20, left: 40})
+            .xUnits(function() { return num_bins })
+            // .centerBar(true)
+            .filter(filter)
+            .x(d3.scale.linear()
+              .domain([
+                domain_min,
+                domain_max
+              ])
+            )
+            .dimension(dims[dim])
+            .group(grouper)
+            .valueAccessor(valueAccessor)
+            .filterPrinter(filterPrinter)
+          ;
+
+          hist.yAxis().tickFormat(yAxisFormatter)
+          hist.xAxis().tickFormat(xFormatter)
+
+          var make_number_display = function(stat, numer, denom) {
+            $('#' + dim).find(".nd-container")
+              .append(
+                $('<div></div>')
+                  .css({
+                    "margin-right": "20px",
+                    "display": "block"
+                  })
+                  .text(stat + ": ")
+                  .append($("<span></span>")
+                    .attr("id", "nd" + stat + "-" + dim)
+                  )
+              )
+
+            var numer = options["numer"];
+            var denom = options["denom"]
+
+            var groupers = {
+              "Avg": function() {
+                    if (numer && denom) {
+
+                      return function(g) {
+                        return g.reduce(
+                          reduceAddAvgRatio(numer, denom),
+                          reduceRemoveAvgRatio(numer, denom),
+                          reduceInitAvgRatio
+                        )
+                      }
+                    } else {
+                      return function(g) {
+
+                        return g.reduce(
+                          reduceAddAvgNulls(dim),
+                          reduceRemoveAvgNulls(dim),
+                          reduceInitAvgNulls
+                        )
+                      }
+                    }
+                  }(),
+              "Sum": function(g) { return g.reduceSum(function(d) { return d[dim] }) }
+            }
+
+            var accessors = {
+              "Avg": function() {
+                    if (numer && denom) {
+                      return average_ratio_accessor;
+                    } else {
+                      return avgNullsAccessor;
+                    }
+                  }(),
+              "Sum": function(d) { return d }
+            }
+
+
+            var ndGrouper = groupers[stat];
+            var ndAccessor = accessors[stat];
+
+            dc.numberDisplay("#nd" + stat + "-" + dim)
+              .formatNumber(xFormatter)
+              .group(ndGrouper(ndx.groupAll()))
+              .valueAccessor(ndAccessor)
+          };
+
+          var annotations = options['annotations'] || ["Avg"];
+
+          annotations.forEach(function(item) {
+            make_number_display(item);
+          })
+
+          return hist
+
+        };
+
+        start = new Date();
+
+        var pos_order = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'P', '?'];
+
+        yearChart = make_hist_chart(
+          "year", 
           {
-            rounder: function(d) { return Math.floor(d  / 25) * 25; },
-            annotations: ['Avg', 'Sum']
+            'xFormatter': formatNumberGeneral,
+            'domain_max': 2017,
           }
         );
 
-        baChart = make_hist_chart(
-          "ba",
-          {
-            numer: 'h',
-            denom: 'ab',
-            xFormatter: formatSlashStat,
-            domain_max: 0.500,
-            rounder: function(d) { return decimal_bucket(d,0.01); }
-          }
-        );
-
-        paChart = make_hist_chart(
-          "pa",
-          {
-            rounder: function(d) { return Math.floor(d  / 25) * 25; },
-            annotations: ['Avg', 'Sum']
-          }
-        );
-
-        obpChart = make_hist_chart(
-          "obp",
-          {
-            numer: 'tob',
-            denom: 'pa',
-            xFormatter: formatSlashStat,
-            // elasticX: true,
-            domain_max: 0.500,
-            rounder: function(d) { return decimal_bucket(d,0.01); }
-          }
-        );
-
-        rChart = make_hist_chart(
-          "r",
-          {
-            annotations: ['Avg', 'Sum'],
-            rounder: function(d) { return Math.floor(d  / 5) * 5; }
-          }
-        );
-
-        hrChart = make_hist_chart(
-          "hr",
-
-          {
-            annotations: ['Avg', 'Sum'],
-            rounder: function(d) { return Math.floor(d  / 5) * 5; }
-          }
-        );
-
-        rbiChart = make_hist_chart(
-          "rbi",
-          {
-            annotations: ['Avg', 'Sum'],
-            rounder: function(d) { return Math.floor(d  / 5) * 5; }
-          }
-        );
-
-        sbChart = make_hist_chart(
-          "sb",
-          {
-            annotations: ['Avg', 'Sum'],
-            rounder: function(d) { return Math.floor(d  / 5) * 5; }
-          }
-        ); 
-
-        set_range_filter('pa', paChart, 503);
-
-      } else if (player_type == 'Pitching') {
-
-        gsChart = make_hist_chart(
-            "gs",
+        teamChart = make_row_chart("team", {'h': 550});
+        leagueChart = make_pie_chart("league");
+        posChart = make_row_chart("pos", {orderer: function(d) { return pos_order.indexOf(d.key)}});
+          
+        if (player_type == 'Batting') {
+          abChart = make_hist_chart(
+            "ab",
             {
-              // rounder: function(d) { return Math.floor(d  / 25) * 25; },
+              rounder: function(d) { return Math.floor(d  / 25) * 25; },
               annotations: ['Avg', 'Sum']
             }
           );
 
-        eraChart = make_hist_chart(
-          "era",
-          {
-            numer: 'er9',
-            denom: 'ip',
-            xFormatter: formatSlashStat,
-            domain_max: 5.0,
-            rounder: function(d) { return decimal_bucket(d,0.1); }
-          }
-        );
-
-        ipChart = make_hist_chart(
-          "ip",
-          {
-            rounder: function(d) { return Math.floor(d  / 10) * 10; },
-            annotations: ['Avg', 'Sum']
-          }
-        );
-
-        whipChart = make_hist_chart(
-          "whip",
-          {
-            numer: 'wh',
-            denom: 'ip',
-            xFormatter: formatSlashStat,
-            // elasticX: true,
-            domain_max: 2.0,
-            rounder: function(d) { return decimal_bucket(d,0.1); }
-          }
-        );
-
-        wChart = make_hist_chart(
-          "w",
-          {
-            annotations: ['Avg', 'Sum'],
-            // rounder: function(d) { return Math.floor(d  / 5) * 5; }
-          }
-        );
-
-        svChart = make_hist_chart(
-          "sv",
-
-          {
-            annotations: ['Avg', 'Sum'],
-            valueAccessor: function(d) { return d.value / all.value() },
-            yAxisFormatter: formatPercent0,
-            // rounder: function(d) { return Math.floor(d  / 5) * 5; }
-          }
-        );
-
-        soChart = make_hist_chart(
-          "so",
-          {
-            annotations: ['Avg', 'Sum'],
-            rounder: function(d) { return Math.floor(d  / 10) * 10; }
-          }
-        );
-
-        // set_range_filter('ip', ipChart, 162);
-      }
-   
-      console.log("make charts: " + (new Date() - start));
-      timers.push(new Date() - start);
-
-      // set defaults
-      
-      set_range_filter('year', yearChart, 2015, 2016);
-
-      dc.dataCount('.data-count')
-          .dimension(ndx)
-          .group(all)
-      ;
-
-      console.log("make all the charts: " + (new Date() - start))
-      timers.push(new Date() - start)
-
-      $(".toggler").on("click", function() { 
-        $(this).parent().siblings().toggle();
-        $(this).toggleText("(show)", "(hide)");
-      });
-
-      $(".player-type-toggler").on("click", function() {
-        var new_player_type = player_type == 'Batting' ? 'Pitching' : 'Batting';
-        render_page(new_player_type);
-      });
-
-      toggle_loading();
-
-      // bind jquery dataTable to dc tables
-      // http://stackoverflow.com/questions/21113513/dcjs-reorder-datatable-by-column
-
-      var table_size = Infinity;
-      function RefreshTable() {
-        dc.events.trigger(function() {
-          var filtered_data = dims.year.top(table_size);
-          playerTable.fnClearTable();
-          if (filtered_data.length > 0) {
-            playerTable.fnAddData(filtered_data);  
-            playerTable.fnDraw();
-            // re-hide table if it was hidden before
-            if ($("#table-toggler").text() == '(show)') {
-              $("#player-datatable tr").hide();
+          baChart = make_hist_chart(
+            "ba",
+            {
+              numer: 'h',
+              denom: 'ab',
+              xFormatter: formatSlashStat,
+              domain_max: 0.500,
+              rounder: function(d) { return decimal_bucket(d,0.01); }
             }
-          }
+          );
+
+          paChart = make_hist_chart(
+            "pa",
+            {
+              rounder: function(d) { return Math.floor(d  / 25) * 25; },
+              annotations: ['Avg', 'Sum']
+            }
+          );
+
+          obpChart = make_hist_chart(
+            "obp",
+            {
+              numer: 'tob',
+              denom: 'pa',
+              xFormatter: formatSlashStat,
+              // elasticX: true,
+              domain_max: 0.500,
+              rounder: function(d) { return decimal_bucket(d,0.01); }
+            }
+          );
+
+          rChart = make_hist_chart(
+            "r",
+            {
+              annotations: ['Avg', 'Sum'],
+              rounder: function(d) { return Math.floor(d  / 5) * 5; }
+            }
+          );
+
+          hrChart = make_hist_chart(
+            "hr",
+
+            {
+              annotations: ['Avg', 'Sum'],
+              rounder: function(d) { return Math.floor(d  / 5) * 5; }
+            }
+          );
+
+          rbiChart = make_hist_chart(
+            "rbi",
+            {
+              annotations: ['Avg', 'Sum'],
+              rounder: function(d) { return Math.floor(d  / 5) * 5; }
+            }
+          );
+
+          sbChart = make_hist_chart(
+            "sb",
+            {
+              annotations: ['Avg', 'Sum'],
+              rounder: function(d) { return Math.floor(d  / 5) * 5; }
+            }
+          ); 
+
+          set_range_filter('pa', paChart, 503);
+
+        } else if (player_type == 'Pitching') {
+
+          gsChart = make_hist_chart(
+              "gs",
+              {
+                // rounder: function(d) { return Math.floor(d  / 25) * 25; },
+                annotations: ['Avg', 'Sum']
+              }
+            );
+
+          eraChart = make_hist_chart(
+            "era",
+            {
+              numer: 'er9',
+              denom: 'ip',
+              xFormatter: formatSlashStat,
+              domain_max: 5.0,
+              rounder: function(d) { return decimal_bucket(d,0.1); }
+            }
+          );
+
+          ipChart = make_hist_chart(
+            "ip",
+            {
+              rounder: function(d) { return Math.floor(d  / 10) * 10; },
+              annotations: ['Avg', 'Sum']
+            }
+          );
+
+          whipChart = make_hist_chart(
+            "whip",
+            {
+              numer: 'wh',
+              denom: 'ip',
+              xFormatter: formatSlashStat,
+              // elasticX: true,
+              domain_max: 2.0,
+              rounder: function(d) { return decimal_bucket(d,0.1); }
+            }
+          );
+
+          wChart = make_hist_chart(
+            "w",
+            {
+              annotations: ['Avg', 'Sum'],
+              // rounder: function(d) { return Math.floor(d  / 5) * 5; }
+            }
+          );
+
+          svChart = make_hist_chart(
+            "sv",
+
+            {
+              annotations: ['Avg', 'Sum'],
+              valueAccessor: function(d) { return d.value / all.value() },
+              yAxisFormatter: formatPercent0,
+              // rounder: function(d) { return Math.floor(d  / 5) * 5; }
+            }
+          );
+
+          soChart = make_hist_chart(
+            "so",
+            {
+              annotations: ['Avg', 'Sum'],
+              rounder: function(d) { return Math.floor(d  / 10) * 10; }
+            }
+          );
+
+          // set_range_filter('ip', ipChart, 162);
+        }
+     
+        console.log("make charts: " + (new Date() - start));
+        timers.push(new Date() - start);
+
+        // set defaults
+        
+        set_range_filter('year', yearChart, 2015, 2016);
+
+        dc.dataCount('.data-count')
+            .dimension(ndx)
+            .group(all)
+        ;
+
+        console.log("make all the charts: " + (new Date() - start))
+        timers.push(new Date() - start)
+
+        $(".toggler").on("click", function() { 
+          $(this).parent().siblings().toggle();
+          $(this).toggleText("(show)", "(hide)");
         });
-      }
 
-      dc.chartRegistry.list().forEach(function(chart) {
-        chart.on("filtered", RefreshTable);
+        $(".player-type-toggler").on("click", function() {
+          var new_player_type = player_type == 'Batting' ? 'Pitching' : 'Batting';
+          render_page(new_player_type);
+        });
+
+        toggle_loading();
+
+        // bind jquery dataTable to dc tables
+        // http://stackoverflow.com/questions/21113513/dcjs-reorder-datatable-by-column
+
+        var table_size = Infinity;
+        function RefreshTable() {
+          dc.events.trigger(function() {
+            var filtered_data = dims.year.top(table_size);
+            playerTable.fnClearTable();
+            if (filtered_data.length > 0) {
+              playerTable.fnAddData(filtered_data);  
+              playerTable.fnDraw();
+              // re-hide table if it was hidden before
+              if ($("#table-toggler").text() == '(show)') {
+                $("#player-datatable tr").hide();
+              }
+            }
+          });
+        }
+
+        dc.chartRegistry.list().forEach(function(chart) {
+          chart.on("filtered", RefreshTable);
+        });
+
+        start = new Date();
+
+        $('#player-table')
+          .html(
+            $('<table></table>')
+            .attr("cellpadding", "0")
+            .attr("cellspacing", "0")
+            .attr("border", "0")
+            .addClass("display")
+            .attr("id", "player-datatable")
+          )
+        ;
+
+        var columns = [
+          {"data": "year", "title": "Year", "defaultContent": ""},
+          {"data": "full_name", "title": "Full Name", "defaultContent": ""},
+          {"data": "team", "title": "Team", "defaultContent": ""},
+          {"data": "pos", "title": "Pos", "defaultContent": ""},
+        ];
+
+        var extra_columns;
+        if (player_type == 'Batting') {
+
+          extra_columns = [
+            {"data": "ba", "title": "Batting<br>Avg", "defaultContent": "", "render": formatSlashStat},
+            {"data": "obp", "title": "On-Base<br>Percentage", "defaultContent": "", "render": formatSlashStat},
+            {"data": "ab", "title": "ABs", "defaultContent": ""},
+            {"data": "pa", "title": "PAs", "defaultContent": ""},
+            {"data": "hr", "title": "HRs", "defaultContent": ""},
+            {"data": "r", "title": "Runs", "defaultContent": ""},
+            {"data": "rbi", "title": "RBIs", "defaultContent": ""},
+            {"data": "sb", "title": "SBs", "defaultContent": ""},  
+          ]
+        } else if (player_type == 'Pitching') {
+          extra_columns = [
+            {"data": "gs", "title": "Games<br>Started", "defaultContent": ""},
+            {"data": "ip", "title": "Innings<br>Pitched", "defaultContent": "", "render": formatPrec1},
+            {"data": "era", "title": "ERA", "defaultContent": "", "render": formatSlashStat},
+            {"data": "whip", "title": "WHIP", "defaultContent": "", "render": formatSlashStat},
+            {"data": "sv", "title": "Saves", "defaultContent": ""},
+            {"data": "w", "title": "Wins", "defaultContent": ""},
+            {"data": "so", "title": "Ks", "defaultContent": ""},
+          ]
+        }
+
+        extra_columns.forEach(function(item) {
+          columns.push(item);
+        })
+
+        playerTable = $('#player-datatable').dataTable( {
+          "data": dims.year.top(table_size),
+          "paging": true,
+          "info": true,
+          "order": [[4, "desc"]],
+          "searching": true,
+          "scrollX": true,
+          "columns": columns
+        });
+
+        $("#dashboard-stats").toggle();
+        $("#chart-rows-control").toggle();
+        
+        // $("#asof").text(" data through " + formatDate(max_weekly_end));
+        
+        console.log("make datatable: " + (new Date() - start));
+        timers.push(new Date() - start)
+
+        start = new Date();
+        dc.renderAll();
+        console.log("render all: " + (new Date() - start));
+        timers.push(new Date() - start)
+
+        console.log("total load time: " + (new Date() - top_start));
+        var sum=0;
+        timers.forEach(function(item) { sum+=item});
+        console.log(sum/(new Date() - top_start) + " captured by above timers.")
+
       });
 
-      start = new Date();
+    };
 
-      $('#player-table')
-        .html(
-          $('<table></table>')
-          .attr("cellpadding", "0")
-          .attr("cellspacing", "0")
-          .attr("border", "0")
-          .addClass("display")
-          .attr("id", "player-datatable")
-        )
-      ;
-
-      var columns = [
-        {"data": "year", "title": "Year", "defaultContent": ""},
-        {"data": "full_name", "title": "Full Name", "defaultContent": ""},
-        {"data": "team", "title": "Team", "defaultContent": ""},
-        {"data": "pos", "title": "Pos", "defaultContent": ""},
-      ];
-
-      var extra_columns;
-      if (player_type == 'Batting') {
-
-        extra_columns = [
-          {"data": "ba", "title": "Batting<br>Avg", "defaultContent": "", "render": formatSlashStat},
-          {"data": "obp", "title": "On-Base<br>Percentage", "defaultContent": "", "render": formatSlashStat},
-          {"data": "ab", "title": "ABs", "defaultContent": ""},
-          {"data": "pa", "title": "PAs", "defaultContent": ""},
-          {"data": "hr", "title": "HRs", "defaultContent": ""},
-          {"data": "r", "title": "Runs", "defaultContent": ""},
-          {"data": "rbi", "title": "RBIs", "defaultContent": ""},
-          {"data": "sb", "title": "SBs", "defaultContent": ""},  
-        ]
-      } else if (player_type == 'Pitching') {
-        extra_columns = [
-          {"data": "gs", "title": "Games<br>Started", "defaultContent": ""},
-          {"data": "ip", "title": "Innings<br>Pitched", "defaultContent": "", "render": formatPrec1},
-          {"data": "era", "title": "ERA", "defaultContent": "", "render": formatSlashStat},
-          {"data": "whip", "title": "WHIP", "defaultContent": "", "render": formatSlashStat},
-          {"data": "sv", "title": "Saves", "defaultContent": ""},
-          {"data": "w", "title": "Wins", "defaultContent": ""},
-          {"data": "so", "title": "Ks", "defaultContent": ""},
-        ]
-      }
-
-      extra_columns.forEach(function(item) {
-        columns.push(item);
-      })
-
-      playerTable = $('#player-datatable').dataTable( {
-        "data": dims.year.top(table_size),
-        "paging": true,
-        "info": true,
-        "order": [[4, "desc"]],
-        "searching": true,
-        "scrollX": true,
-        "columns": columns
-      });
-
-      $("#dashboard-stats").toggle();
-      $("#chart-rows-control").toggle();
-      
-      // $("#asof").text(" data through " + formatDate(max_weekly_end));
-      
-      console.log("make datatable: " + (new Date() - start));
-      timers.push(new Date() - start)
-
-      start = new Date();
-      dc.renderAll();
-      console.log("render all: " + (new Date() - start));
-      timers.push(new Date() - start)
-
-      console.log("total load time: " + (new Date() - top_start));
-      var sum=0;
-      timers.forEach(function(item) { sum+=item});
-      console.log(sum/(new Date() - top_start) + " captured by above timers.")
-
-    });
-
-  };
-
-  render_page('Pitching');
+    render_page('Pitching');
+  })
 
   </script>
   </body>
