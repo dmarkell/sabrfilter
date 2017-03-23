@@ -1,0 +1,73 @@
+@font-face {
+    font-family: 'National-Light';
+    src: url('../fonts/fonts/National-Light.eot'),
+         url('../fonts/National-Light.eot?#iefix') format('embedded-opentype'),
+         url('../fonts/National-Light.woff') format('woff'),
+         url('../fonts/National-Light.ttf') format('truetype');
+    font-weight: 300;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'National-Regular';
+    src: url('../fonts/National-Regular.eot'),
+         url('../fonts/National-Regular.eot?#iefix') format('embedded-opentype'),
+        url('../fonts/National-Regular.woff') format('woff'),
+        url('../fonts/National-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+
+
+@font-face {
+    font-family: 'National-Medium';
+    src: url('../fonts/National-Medium.eot');
+    src: url('../fonts/National-Medium.eot?#iefix') format('embedded-opentype'),
+        url('../fonts/National-Medium.woff') format('woff'),
+        url('../fonts/National-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'National-Bold';
+    src: url('../fonts/National-Bold.eot');
+    src: url('../fonts/National-Bold.eot?#iefix') format('embedded-opentype'),
+        url('../fonts/National-Bold.woff') format('woff'),
+        url('../fonts/National-Bold.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'National-LightItalic';
+    src: url('../fonts/National-LightItalic.eot');
+    src: url('../fonts/National-LightItalic.eot?#iefix') format('embedded-opentype'),
+        url('../fonts/National-LightItalic.woff') format('woff'),
+        url('../fonts/National-LightItalic.ttf') format('truetype');
+    font-weight: 300;
+    font-style: italic;
+}
+
+
+@font-face {
+    font-family: 'Tiempos-Light';
+    src: url('../fonts/TiemposHeadline-Light.eot');
+    src: url('../fonts/TiemposHeadline-Light.eot?#iefix') format('embedded-opentype'),
+        url('../fonts/TiemposHeadline-Light.woff') format('woff'),
+        url('https://hinge.co/fonts/TiemposHeadline-Light.ttf') format('truetype');
+    font-weight: 300;
+    font-style: normal;
+}
+
+
+@font-face {
+    font-family: 'TiemposHeadline-Bold';
+    src: url('../fonts/TiemposHeadline-Bold.eot');
+    src: url('../fonts/TiemposHeadline-Bold.eot?#iefix') format('embedded-opentype'),
+        url('../fonts/TiemposHeadline-Bold.woff') format('woff'),
+        url('../fonts/TiemposHeadline-Bold.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}

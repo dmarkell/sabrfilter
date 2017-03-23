@@ -35,15 +35,32 @@ else:
     app.config['DEBUG'] = True
     db_con = psycopg2.connect(host='')
 
+def send_pitcher_webhook(payload):
+
+    url = os.environ['PITCHER_WEBHOOK_URL']
+
+    resp = requests.post(url, json=payload)
+
+    return json.dumps(resp.text)
+
 @app.route('/')
 def render_page():
     return app.send_static_file('index.html')
+
+@app.route('/draft')
+def render_draft_page():
+    return app.send_static_file('draft.html')
 
 
 @app.route('/espn_fantasy/get_closers')
 def get_closers():
 
-    return json.dumps([el for el in _get_closers()])
+    closers = [el for el in _get_closers()]
+    
+    # TODO: write to database. if there are changes, send to Slack.
+    # send_pitcher_webhook({"text": json.dumps(closers)})
+
+    return json.dumps(closers)
 
 def _get_closers():
 
@@ -86,12 +103,12 @@ def _get_closers():
                     if clean_text in rp_types:
                         if rps:
                             for rp in rps:
-                                print(json.dumps({
+                                yield {
                                     "team_code": team_code,
                                     "role": rp_type,
                                     "player_id": rp[0] if rp[0] not in errata else errata[rp[0]],
                                     "player_name": rp[1]
-                                }))
+                                }
                         rp_type = clean_text
                         rps = []
                     else:
