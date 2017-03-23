@@ -1,0 +1,481 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="shortcut icon" href="./static/baseball.png">
+
+    <title>Draft Tool</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="../static/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="../static/datatables_style.css">
+
+    <!-- Custom styles for this template -->
+    <link href="./static/dashboard.css" rel="stylesheet">
+
+    <!-- Custom Hinge fonts and styling -->
+    <link href="./static/css/fonts.css" rel="stylesheet">
+    
+
+    <!-- Fontawesome Fonts -->
+    <link href="https://blackrockdigital.github.io/startbootstrap-sb-admin-2/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+
+    <style type="text/css">
+      
+      html,
+      body {
+        height: 100%;
+        font-family: 'National-Regular';
+      }
+
+      body {
+        color: #2e2e2e;
+      }
+
+      a:hover {
+        cursor:pointer;
+      }
+
+      /* http://stackoverflow.com/questions/248011/how-do-i-wrap-text-in-a-pre-tag */
+      .preview pre {
+        white-space: pre-wrap;       /* Since CSS 2.1 */
+        white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+        white-space: -pre-wrap;      /* Opera 4-6 */
+        white-space: -o-pre-wrap;    /* Opera 7 */
+        word-wrap: break-word;       /* Internet Explorer 5.5+ */
+      }
+
+      .photo {
+        background: #888;
+      }
+
+      span.photo {
+        display: inline-block;
+      }
+
+      img.photo {
+        border-radius:100%
+      }
+
+      .photo-thumb {
+        width:75px;
+        height: 75px;
+      }
+
+      .photo-chat-thumb {
+        width: 50px;
+        height: 50px;
+      }
+
+      .photo-large {
+        width: 100px;
+        height: 100px;
+        margin: 0 auto;
+      }
+
+      span.activity-msgpreview-moniker {
+        font-weight: bold;
+      }
+
+      div.new-activity.activity-row-type  {
+        color: #fff;
+        background-color: #5cb85c;
+        border-color: #4cae4c;
+        /*color:#2b542c;
+        background-color:#c1e2b3;*/
+      }
+
+      div.activity-row-connectiontime.prod a {
+        color: tomato;
+      }
+
+      div.activity-row-initiationtime a {
+        color: #2e2e2e;
+      }
+
+      div.new-activity.activity-row-lastchattime  {
+        color:#2b542c;
+        font-weight: bold;
+        font-style: italic;
+      }
+
+      .navbar a {
+        font-size: 1.5em;
+        letter-spacing: 1px;
+        color: white;
+      }
+
+      .navbar-inverse {
+        background-color: #4a2b4d;
+      }
+
+      .navbar-inverse .navbar-brand {
+        color: #e2e2e2;
+      }
+
+      .navbar-inverse .navbar-brand:hover {
+        color: #ffffff;
+      }
+
+      /* hacky, sort of uses navbar-brand styling */
+      span#vers {
+        float: left;
+        height: 50px;
+        padding: 15px 0px;
+        line-height: 25px;
+        color: #a2a2a2;
+        font-size:small;
+      }
+
+      .reset {
+        font-size: 15px;
+        color: #999;
+      }
+
+      .reset:hover {
+        cursor: pointer;
+        text-decoration: underline;
+      }
+
+      td.control .fake-a {
+        color: #337ab7;
+      }
+
+      td.control .fake-a:hover {
+        cursor: pointer;
+        color: #23527c;
+      }
+
+      ul.poi-status {
+        border-top: thin solid #ccc;
+      }
+
+      .nav.filter > li > a {
+        padding-bottom: 2px;
+        padding-top: 2px;
+      }
+
+      .dataTables_wrapper .dataTables_filter {
+        float: left;
+      }
+
+      #activity-wrapper {
+        height: 600px;/*bad!*/
+        border-right: thin solid #ccc;
+        overflow-y: scroll;
+      }
+
+      .nav.filter.heading > li > div {
+        color: #333;
+        font-size: 1.5em;
+        margin-left: 10px;
+        margin-bottom: 5px;
+      }
+
+      div.activity-row-type {
+        outline: thin solid darkgray;
+        background-color: lightgray;
+        padding-left: 5px;
+      }
+
+      ul.nav {
+        margin-bottom: 0;
+      }
+
+      .nav.filter > li.sub {
+        margin-left: 1.5em;
+      }
+
+      .sidebar {
+        /*overflow-y: hidden;*/
+        border-right: thin solid #2e2e2e;
+        background-color: #e2e2e2;
+      }
+
+      .nav-sidebar.heading div {
+        display: inline-block;
+      }
+
+      .nav-sidebar.heading input {
+        font-size: 0.7em;
+      }
+
+      .nav-sidebar.filter > .active > a {
+        font-weight: bold;
+        color: #23527c;
+        background-color: inherit;
+      }
+
+
+      ul.dropdown-menu.slidedown > li.active > a {
+        font-weight: bold;
+        color: #23527c;
+        background-color: inherit
+      }
+
+      .nav-sidebar.filter > .active > a:before {
+        content: "\2713";
+        position: absolute;
+        left: 6px;
+      }
+
+      .chat-panel .dropdown-menu li.active > a:after {
+        font-weight: bold; 
+      }
+
+      .chat-panel .dropdown-menu li.active > a:after {
+        content: "\2713";
+        position: absolute;
+        right: 6px;
+      }
+
+      /*#activity-datatable thead {
+        display: none;
+      }*/
+
+      #activity-datatable tr:hover {
+        background-color: #f9f9f9;
+      }
+
+
+
+      tr.shown {
+        background-color: #595959; 
+      }
+
+      /***
+       for chat panel 
+       https://blackrockdigital.github.io/startbootstrap-sb-admin-2/pages/index.html
+      ***/
+
+      .chat {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .chat li {
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+        border-bottom: 1px dotted #999999;
+      }
+
+      .chat-body {
+        word-wrap: break-word;
+      }
+
+      .chat li.left .chat-body {
+        margin-left: 60px;
+      }
+      .chat li.right .chat-body {
+        margin-right: 60px;
+      }
+      .chat li .chat-body p {
+        margin: 0;
+      }
+      .panel .slidedown .glyphicon,
+      .chat .glyphicon {
+        margin-right: 5px;
+      }
+      .chat-panel .panel-body {
+        max-height: 350px;
+        overflow-y: scroll;
+      }
+
+      .dropdown-menu > li > span {
+        display: block;
+        padding: 3px 20px;
+        clear: both;
+        font-weight: 400;
+        line-height: 1.42857143;
+        color: #333;
+        white-space: nowrap;
+      }
+
+      .panel-footer textarea {
+        width: 95% !important;
+        resize: vertical;
+      }
+
+      .input-group-btn {
+        vertical-align: top;
+      }
+
+      .btn.stacked {
+        display: block;
+        width: 100%;
+        border-radius: 3px !important;
+      }
+
+      .stacked:not(:first-child) {
+        margin-top: 3px;
+      }
+
+      #btn-html {
+        background-color: transparent;
+        color: steelblue;
+        border: none;
+        width: 0px;
+        padding: 0 25%;
+        font-weight: bold;
+      }
+
+      /***/
+
+      table.settings {
+        margin: 0 auto;
+      }
+
+      div.settings.btn-group {
+        display:inline-block;
+      }
+
+    </style>
+
+
+  </head>
+
+  <body>
+
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <div><a class="navbar-brand" href="/">...</a><span id="vers"></span></div>
+        </div>
+        <!-- <div id="navbar" class="navbar-collapse collapse">
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="#">Dashboard</a></li>
+            <li><a href="#">Settings</a></li>
+            <li><a href="#">Help</a></li>
+          </ul>
+          <form class="navbar-form navbar-right">
+            <input type="text" class="form-control" placeholder="Search...">
+          </form>
+        </div>
+      </div> -->
+    </nav>
+
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-sm-3 col-md-2 sidebar">
+          <ul class="nav nav-sidebar client filter heading">
+            <li>
+              <div>Teams</div>
+            </li>
+          </ul>
+          <ul class="nav nav-sidebar client filter">
+          </ul>
+          <ul class="nav nav-sidebar client new">
+            <li>
+                <div style="padding:8px 14px" class="form-group">
+                  <input id="add-member" style="display:inline-block;" class="form-control" placeholder="User ID, FBID or email">
+                </div>
+            </li>
+          </ul>
+          <ul class="nav nav-sidebar position filter heading">
+            <li><div>Position</div></li>
+          </ul>
+          <ul class="nav nav-sidebar position filter">
+            <li data-value="Infield" class="category active"><a href="#">Infield</a></li>
+            <li data-value="1B" class="sub active"><a href="#">1B</a></li>
+            <li data-value="2B" class="sub active"><a href="#">2B</a></li>
+            <li data-value="3B" class="sub active"><a href="#">3B</a></li>
+            <li data-value="SS" class="sub active"><a href="#">SS</a></li>
+            <li data-value="Infield" class="category active"><a href="#">Outfield</a></li>
+            <li data-value="1B" class="sub active"><a href="#">LF</a></li>
+            <li data-value="2B" class="sub active"><a href="#">CF</a></li>
+            <li data-value="3B" class="sub active"><a href="#">RF</a></li>
+            <li data-value="Infield" class="category active"><a href="#">Infield</a></li>
+            <li data-value="1B" class="sub active"><a href="#">1B</a></li>
+            <li data-value="2B" class="sub active"><a href="#">2B</a></li>
+            <li data-value="3B" class="sub active"><a href="#">3B</a></li>
+            <li data-value="SS" class="sub active"><a href="#">SS</a></li>
+            
+            
+            <li data-value="All" class="disabled all active"><a href="#">Select All</a></li>
+            <li data-value="None" class="none"><a href="#">Select None</a></li>
+
+          </ul>
+        </div>
+
+        <div class="col-sm-4 col-sm-offset-3 col-md-5 col-md-offset-2">
+
+          <div id="activity-wrapper">
+              
+            <div style="clear:both;display:block" class="table-responsive">
+              <table id="activity-datatable" class="table dataTables_wrapper">
+              </table>
+            </div>
+          </div>
+
+        
+        </div>
+
+        <div class="col-sm-5 col-md-5">
+
+          <div id="details-pane">
+          </div>
+
+        
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Bootstrap core JavaScript
+    ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script type="text/javascript" src="./static/jquery-2.1.1.min.js"></script>
+    <!-- // <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script> -->
+    <script src="./static/bootstrap.min.js"></script>
+    <script src="./static/jquery.dataTables.min.js"></script>
+
+    <script type="text/javascript" src="./static/alert_handler.js"></script>
+
+    <script type="text/javascript">
+
+      var get_chat_pane_settings, get_user_meta;
+
+      $.ajax({
+        url: "get_config",
+        "beforeSend": function() {
+          var client_version = 'v0.1.1';
+          $("#vers")
+            .attr('data-version', client_version)
+            .text(client_version)
+          ;
+        }
+      }).done(function(d) {
+        var config = $.parseJSON(d);
+        if ( typeof config['error'] !== 'undefined' ) {
+          console.error('Error loading config file: ' + config['error'] + ';' + config['message'])
+          alert('Error loading config file: ' + config['error'] + ';' + config['message'])
+          // alert_client_filter_loader(config);
+          return
+        }
+
+        var api_version = config.version;
+        var client_version = $('#vers').attr("data-version");
+        if ( api_version !== client_version ) {
+          var msg = "Client version '" + client_version;
+          msg += "' does not match api_version '" + api_version + "'.";
+          msg += ' Consider hard refresh.'
+          console.warn(msg);
+        }
+
+      });
+
+    </script>
+
+  </body>
+</html>
