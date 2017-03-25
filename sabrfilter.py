@@ -33,7 +33,7 @@ if is_prod:
 
 else:
     app.config['DEBUG'] = True
-    db_con = psycopg2.connect(host='localhost')
+    db_con = psycopg2.connect(host='')
 
 def send_pitcher_webhook(payload):
 
