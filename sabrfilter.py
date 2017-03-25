@@ -56,11 +56,47 @@ def render_draft_page():
 def get_closers():
 
     closers = [el for el in _get_closers()]
-    
-    # TODO: write to database. if there are changes, send to Slack.
-    # send_pitcher_webhook({"text": json.dumps(closers)})
 
     return json.dumps(closers)
+
+
+@app.route('/espn_fantasy/update_closers')
+def update_closers():
+
+    rps = [i for i in _get_closers()]
+    new_roles = {k['player_id']: {'role': k['role'], 'player_name': k['player_name'],
+                                  'team_code': k['team_code']} for k in rps}
+    cur = db_con.cursor()
+    cur.execute('SELECT player_id, role, player_name, team_code FROM closers;')
+
+    closer_changes = []
+    for player_id, old_role, player_name, team_code in cur.fetchall():
+        if player_id not in new_roles:
+             notification = '{0} ({1}, {2}) not found in new closer chart'.format(player_name, player_id, team_code)
+             closer_changes.append(notification)
+        new_role = new_roles.get(player_id).get('role')
+        if new_role != old_role:
+             notification = '{0} ({1}) was {2} but is now {3}'.format(player_name, team_code, old_role, new_role)
+             closer_changes.append(notification)
+
+    if len(closer_changes) > 0:
+        for notification in set(closer_changes):
+            payload = {'text': notification}
+            send_pitcher_webhook(payload)
+
+    update_closers_table(rps)
+
+    return json.dumps(list(set(closer_changes)))
+
+
+def update_closers_table(rps):
+
+    cur = db_con.cursor()
+    for rp in rps:
+        cur.execute('UPDATE closers SET player_id=%s, player_name=%s, role=%s, team_code=%s WHERE player_id=%s;',
+                    (rp['player_id'], rp['player_name'], rp['role'], rp['team_code'], rp['player_id']))
+    db_con.commit()
+    return json.dumps('closers table updated')
 
 def _get_closers():
 
@@ -74,7 +110,7 @@ def _get_closers():
     _clean = lambda x: x.replace(":", "").replace(" ", "_")
     url = 'http://sports.espn.go.com/fantasy/baseball/flb/story?page=REcloserorgchart'
     resp = requests.get(url).content
-    soup = BeautifulSoup(resp)
+    soup = BeautifulSoup(resp, 'html.parser')
 
     tbody = soup.find('table', attrs={'class': 'inline-table'}).find('tbody')
 
