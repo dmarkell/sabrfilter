@@ -63,40 +63,58 @@ def get_closers():
 @app.route('/espn_fantasy/update_closers')
 def update_closers():
 
-    rps = [i for i in _get_closers()]
-    new_roles = {k['player_id']: {'role': k['role'], 'player_name': k['player_name'],
-                                  'team_code': k['team_code']} for k in rps}
+    rps = [i for i in _get_closers()] # list of dictionaries
+    new_table = [(k['player_id'], k['role'], k['player_name'], k['team_code']) for k in rps] # list of tuple, in order to perform set logic with cur.fetchall
+
     cur = db_con.cursor()
     cur.execute('SELECT player_id, role, player_name, team_code FROM closers;')
+    old_table = cur.fetchall()
+    old_table_dict = {i[0]: {'role': i[1], 'player_name': i[2], 'team_code': i[3]} for i in old_table} # create dict from list of tuples for fast lookups
+
+    # set logic to get changes
+    roles_changed = list(set(new_table).difference(set(old_table))) # records in ESPN closer table but not pg table
+    roles_dropped = list(set(old_table).difference(set(new_table))) # records in pg table but not ESPN closer table
 
     closer_changes = []
-    for player_id, old_role, player_name, team_code in cur.fetchall():
-        if player_id not in new_roles:
-             notification = '{0} ({1}, {2}) not found in new closer chart'.format(player_name, player_id, team_code)
-             closer_changes.append(notification)
-        new_role = new_roles.get(player_id).get('role')
-        if new_role != old_role:
-             notification = '{0} ({1}) was {2} but is now {3}'.format(player_name, team_code, old_role, new_role)
-             closer_changes.append(notification)
+    for i in roles_changed:
+        notification = '{0} ({1}) was {2} but is now {3}'.format(i[2], i[3], old_table_dict.get(i[0]).get('role'), i[1])
+        closer_changes.append(notification)
+        if i[0] in [k for k in old_table_dict]:
+            update_closer(i)
+        else:
+            insert_closer(i)
+
+    for i in [j for j in roles_dropped if j[0] not in [k[0] for k in roles_changed]]:
+        if i[1] is not None: # should now only be instances where pg shows active role for closer, but closer is no longer in ESPN table
+            notification = '{0} ({1}) was {2} but has been removed from the ESPN closer table'.format(i[2], i[3], i[1])
+            closer_changes.append(notification)
+            update_closer(i, flush_role=True)
 
     if len(closer_changes) > 0:
         for notification in set(closer_changes):
             payload = {'text': notification}
             send_pitcher_webhook(payload)
 
-    update_closers_table(rps)
-
     return json.dumps(list(set(closer_changes)))
 
 
-def update_closers_table(rps):
+def update_closer(rp, flush_role=False):
 
     cur = db_con.cursor()
-    for rp in rps:
-        cur.execute('UPDATE closers SET player_id=%s, player_name=%s, role=%s, team_code=%s WHERE player_id=%s;',
-                    (rp['player_id'], rp['player_name'], rp['role'], rp['team_code'], rp['player_id']))
+    if flush_role == True:
+        role = None
+    else:
+        role = rp[1]
+    cur.execute('UPDATE closers SET player_name=%s, role=%s, team_code=%s WHERE player_id=%s;', (rp[2], role, rp[3], rp[0]))
     db_con.commit()
-    return json.dumps('closers table updated')
+
+
+def insert_closer(rp):
+
+    cur = db_con.cursor()
+    cur.execute('INSERT INTO closers(player_id, role, player_name, team_code) VALUES(%s, %s, %s, %s);', (rp[0], rp[1], rp[2], rp[3]))
+    db_con.commit()
+
 
 def _get_closers():
 
