@@ -77,7 +77,10 @@ def update_closers():
 
     closer_changes = []
     for i in roles_changed:
-        notification = '{0} ({1}) was {2} but is now {3}'.format(i[2], i[3], old_table_dict.get(i[0]).get('role'), i[1])
+        try:
+            notification = '{0} ({1}) was {2} but is now {3}'.format(i[2], i[3], old_table_dict.get(i[0]).get('role'), i[1])
+        except AttributeError: # Attribute error thrown if closer not already in pg table
+            notification = '{0} ({1}) is now {2}'.format(i[2], i[3], i[1])
         closer_changes.append(notification)
         if i[0] in [k for k in old_table_dict]:
             update_closer(i)
