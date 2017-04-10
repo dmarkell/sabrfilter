@@ -37,22 +37,11 @@ else:
 
 def send_pitcher_webhook(payload):
 
-    # stream_handler = logging.StreamHandler()
-    # stream_handler.setLevel(logging.INFO)
-    # app.logger.addHandler(stream_handler)
-
     url = os.environ['PITCHER_WEBHOOK_URL']
 
-    print(url)
-
-    try:
-        resp = requests.post(url, json=payload)
-    except Exception as e:
-        print("{}".format(e))
+    resp = requests.post(url, json=payload)
     
-    print(resp.text)
-
-    # return json.dumps(resp.text)
+    return json.dumps(resp.text)
 
 @app.route('/')
 def render_page():
@@ -76,18 +65,16 @@ def update_closers():
 
     rps = [i for i in _get_closers()] # list of dictionaries
     new_table = [(k['player_id'], k['role'], k['player_name'], k['team_code']) for k in rps] # list of tuple, in order to perform set logic with cur.fetchall
-    # print({"new": json.dumps(new_table)})
 
     cur = db_con.cursor()
     cur.execute('SELECT player_id, role, player_name, team_code FROM closers;')
     old_table = cur.fetchall()
     old_table_dict = {i[0]: {'role': i[1], 'player_name': i[2], 'team_code': i[3]} for i in old_table} # create dict from list of tuples for fast lookups
 
-    # print({"old": json.dumps(old_table_dict)})
     # set logic to get changes
     roles_changed = list(set(new_table).difference(set(old_table))) # records in ESPN closer table but not pg table
     roles_dropped = list(set(old_table).difference(set(new_table))) # records in pg table but not ESPN closer table
-    # print(roles_changed)
+
     closer_changes = []
     for i in roles_changed:
         try:
@@ -106,11 +93,9 @@ def update_closers():
             closer_changes.append(notification)
             update_closer(i, flush_role=True)
 
-    # print(closer_changes)
     if len(closer_changes) > 0:
         for notification in set(closer_changes):
             payload = {'text': notification}
-            # print({"payload": json.dumps(payload)})
             send_pitcher_webhook(payload)
 
     return json.dumps(list(set(closer_changes)))
