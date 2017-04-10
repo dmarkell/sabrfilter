@@ -39,7 +39,11 @@ def send_pitcher_webhook(payload):
 
     url = os.environ['PITCHER_WEBHOOK_URL']
 
+    print(url)
+    
     resp = requests.post(url, json=payload)
+    
+    print(resp.text)
 
     return json.dumps(resp.text)
 
@@ -95,11 +99,11 @@ def update_closers():
             closer_changes.append(notification)
             update_closer(i, flush_role=True)
 
-    print(closer_changes)
+    # print(closer_changes)
     if len(closer_changes) > 0:
         for notification in set(closer_changes):
             payload = {'text': notification}
-            print({"payload": json.dumps(payload)})
+            # print({"payload": json.dumps(payload)})
             send_pitcher_webhook(payload)
 
     return json.dumps(list(set(closer_changes)))
