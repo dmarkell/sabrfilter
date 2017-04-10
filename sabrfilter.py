@@ -45,8 +45,10 @@ def send_pitcher_webhook(payload):
 
     print(url)
 
-    # resp = requests.post(url, json=payload)
-    resp = requests.get(url, json=payload)
+    try:
+        resp = requests.post(url, json=payload)
+    except Exception as e:
+        print("{}".format(e))
     
     print(resp.text)
 
