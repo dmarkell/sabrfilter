@@ -76,7 +76,7 @@ def update_closers():
     # set logic to get changes
     roles_changed = list(set(new_table).difference(set(old_table))) # records in ESPN closer table but not pg table
     roles_dropped = list(set(old_table).difference(set(new_table))) # records in pg table but not ESPN closer table
-    print(roles_changed)
+    # print(roles_changed)
     closer_changes = []
     for i in roles_changed:
         try:
@@ -95,10 +95,11 @@ def update_closers():
             closer_changes.append(notification)
             update_closer(i, flush_role=True)
 
-    # print(closer_changes)
+    print(closer_changes)
     if len(closer_changes) > 0:
         for notification in set(closer_changes):
             payload = {'text': notification}
+            print({"payload": json.dumps(payload)})
             send_pitcher_webhook(payload)
 
     return json.dumps(list(set(closer_changes)))
