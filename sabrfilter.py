@@ -45,7 +45,8 @@ def send_pitcher_webhook(payload):
 
     print(url)
 
-    resp = requests.post(url, json=payload)
+    # resp = requests.post(url, json=payload)
+    resp = requests.get(url, json=payload)
     
     print(resp.text)
 
