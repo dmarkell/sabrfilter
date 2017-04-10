@@ -37,15 +37,19 @@ else:
 
 def send_pitcher_webhook(payload):
 
+    # stream_handler = logging.StreamHandler()
+    # stream_handler.setLevel(logging.INFO)
+    # app.logger.addHandler(stream_handler)
+
     url = os.environ['PITCHER_WEBHOOK_URL']
 
     print(url)
-    
+
     resp = requests.post(url, json=payload)
     
     print(resp.text)
 
-    return json.dumps(resp.text)
+    # return json.dumps(resp.text)
 
 @app.route('/')
 def render_page():
