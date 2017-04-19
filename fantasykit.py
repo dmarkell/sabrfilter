@@ -63,17 +63,31 @@ class FangraphsClosers():
         for h2 in s.find_all('h2', {'class': 'posttitle'}):
             try:
                 br_date = dup.parse(h2.text, fuzzy=True)
+                br_date_readable = br_date.strftime('%B %d, %Y')
                 dates.append(br_date)
-                bullpen_reports[br_date] = h2['href']
+                bullpen_reports[br_date_readable] = h2.find('a')['href']
             except Exception:
                 pass
-        most_recent_br_report = max(dates)
-        href = bullpen_reports[most_recent_br_report]
+        most_recent_br = max(dates)
+        most_recent_br_readable = most_recent_br.strftime('%B %d, %Y')
+        href = bullpen_reports[most_recent_br_readable]
+
+        self.parse_closer_table(href)
 
     def parse_closer_table(self, url):
         r = requests.get(url)
         s = BeautifulSoup(r.content, 'html.parser')
-        self.closer_table = {}
+        self.closer_table = []
+        for td in s.find_all('td'):
+            if td.get('class'):
+                if ('closer' in td['class'][0].lower()) and (td.find('a')):
+                    name = td.find('a').get_text()
+                    player_url = td.find('a')['href']
+                    player_id = player_url.split('?')[1].split('&')[0].split('=')[1]
+                    role = td['class'][0].split('_')[0]
+                    color = td['class'][0].split('_')[1]
+                    player_dict = {'player_name': name, 'player_id': player_id, 'role': role, 'color': color}
+                    self.closer_table.append(player_dict)
 
 
 class GameScores():
