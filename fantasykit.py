@@ -3,6 +3,31 @@ import requests
 from bs4 import BeautifulSoup
 import dateutil.parser as dup
 
+def _get_player_popup(fantasy_id):
+    """Gets ESPN fantasy player overview popup using fantasyId
+    returns BS4 Soup object"""
+
+    base = 'http://games.espn.go.com/flb/format/playerpop/overview?'
+
+    params = {
+        "playerId": fantasy_id
+    }
+
+    resp = requests.get(base, params=params)
+
+    soup = BeautifulSoup(resp.text)
+
+    return soup
+
+def converter(opts):
+    """Converts ESPN playerId (from Fantasy tool) to statsId ()"""
+
+    fantasy_id = opts.get('playerId')
+    soup = _get_player_popup(fantasy_id)
+    
+    stats_id = soup.find(class_='pc').findAll('a')[1]['href'].split('=')[1]
+
+    return int(stats_id)
 
 class League():
 
