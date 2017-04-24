@@ -101,7 +101,9 @@ def _get_espn_ids(cur=None):
 def _get_mapped_rosters(cur=None):
 
     rosters = _get_rosters()
+    print(rosters)
     id_map = _get_espn_ids(cur=cur)
+    print(id_map)
 
     mapped_rosters = {}
     found = []
@@ -350,4 +352,4 @@ def get_config():
     return json.dumps(config)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
