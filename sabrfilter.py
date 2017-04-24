@@ -180,7 +180,7 @@ def update_closers():
         for notification in set(closer_changes):
             payload = {'text': notification}
 
-            # send_pitcher_webhook(payload)
+            send_pitcher_webhook(payload)
 
     return json.dumps(list(set(closer_changes)))
 
