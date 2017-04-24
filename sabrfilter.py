@@ -135,6 +135,7 @@ def update_closers():
 
     cur = db_con.cursor()
     
+    print('!')
     rosters = _get_mapped_rosters()
 
     cur.execute('SELECT player_id, role, player_name, team_code FROM closers;')
