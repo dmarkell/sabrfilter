@@ -44,21 +44,20 @@ class League():
         self.rostered_player_ids = {}
         self.team_ids = {}
         for table in s.find_all('table'):
-            team_id = table.find('th').find('a')['href'].split('=')[-1]
-            self.team_ids[team_id] = table.find('th').find('a').get_text()
+            team = table.find('th').find('a')
+            team_id = team['href'].split('=')[-1]
+            team_name = team.get_text()
             for a in table.find_all('a', {'class': 'flexpop', 'leagueid': str(self.league_id)}):
-                self.rostered_player_ids[a['playerid']] = team_id
+                self.rostered_player_ids[a['playerid']] = {'team_id': team_id, 'team_name': team_name}
 
     def get_team_rosters(self):
         self.get_rostered_players()
         self.team_rosters = {}
-        for p in self.rostered_player_ids:
-            try:
-                self.team_rosters[self.rostered_player_ids[p]].append(p)
-            except KeyError:
-                self.team_rosters[self.rostered_player_ids[p]] = []
-                self.team_rosters[self.rostered_player_ids[p]].append(p)
 
+        for player_id, data in self.rostered_player_ids.iteritems():
+            team_id = data['team_id']
+            team_roster = self.team_rosters.get('team_id', [])
+            team_roster.append(player_id)
 
 class Team():
 
