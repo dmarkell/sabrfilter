@@ -18,8 +18,8 @@ import fantasykit as fk
 TOKEN = os.environ['TOKEN']
 app = Flask(__name__)
 
-is_prod = os.environ.get('IS_HEROKU', None)
-if is_prod:
+IS_PROD = os.environ.get('IS_HEROKU', None)
+if IS_PROD:
     app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
     heroku = Heroku(app)
     urlparse.uses_netloc.append("postgres")
@@ -38,6 +38,10 @@ else:
     db_con = psycopg2.connect(host='')
 
 def send_pitcher_webhook(payload):
+
+    username = '{}Closer Update'.format('LOCAL DEV: ' if not IS_PROD else '')
+
+    payload['username'] = username
 
     url = os.environ['PITCHER_WEBHOOK_URL']
 
@@ -98,12 +102,11 @@ def _get_espn_ids(cur=None):
 
     return id_map
 
-def _get_mapped_rosters(cur=None):
+def _get_mapped_rosters(league_id, cur=None):
 
-    rosters = _get_rosters()
-    print(rosters)
+    rosters = _get_rosters(league_id)
+
     id_map = _get_espn_ids(cur=cur)
-    print(id_map)
 
     mapped_rosters = {}
     found = []
@@ -130,13 +133,18 @@ def _get_mapped_rosters(cur=None):
 @app.route('/espn_fantasy/update_closers')
 def update_closers():
 
+    args = {k: v for k,v in request.args.iteritems()}
+    league_id = args.get('leagueId')
+
+    if not league_id:
+        return _fail(error_type="usage", msg="missing required parameter leagueId")
+
     rps = [i for i in _get_closers()] # list of dictionaries
     new_table = [(k['player_id'], k['role'], k['player_name'], k['team_code']) for k in rps] # list of tuple, in order to perform set logic with cur.fetchall
 
     cur = db_con.cursor()
-    
-    print('!')
-    rosters = _get_mapped_rosters()
+
+    rosters = _get_mapped_rosters(league_id, cur=cur)
 
     cur.execute('SELECT player_id, role, player_name, team_code FROM closers;')
 
@@ -171,7 +179,8 @@ def update_closers():
     if len(closer_changes) > 0:
         for notification in set(closer_changes):
             payload = {'text': notification}
-            send_pitcher_webhook(payload)
+
+            # send_pitcher_webhook(payload)
 
     return json.dumps(list(set(closer_changes)))
 
@@ -228,9 +237,9 @@ def update_closer(rp, flush_role=False):
     cur.execute('UPDATE closers SET player_name=%s, role=%s, team_code=%s WHERE player_id=%s;', (rp[2], role, rp[3], rp[0]))
     db_con.commit()
 
-def _get_rosters():
+def _get_rosters(league_id):
 
-    lg = fk.League(os.environ['ESPN_LEAGUE_ID'])
+    lg = fk.League(league_id)
     lg.get_rostered_players()
 
     return lg.rostered_player_ids
