@@ -2,16 +2,18 @@
 from bs4 import BeautifulSoup
 import datetime
 import json
+import os
 import psycopg2
 import requests
+from StringIO import StringIO
+import urlparse
 
 from psycopg2.extras import RealDictCursor
 from flask import Flask, request, session, g, redirect, url_for, abort, \
     render_template, flash, send_from_directory
 from flask.ext.heroku import Heroku
-from contextlib import closing
-import urlparse
-import os
+
+import fantasykit as fk
 
 TOKEN = os.environ['TOKEN']
 app = Flask(__name__)
@@ -59,6 +61,69 @@ def get_closers():
 
     return json.dumps(closers)
 
+def _fail(err=None, error_type="exception", msg="NA"):
+
+    if not err:
+
+        err = {
+            "error": error_type,
+            "message": msg
+        }
+
+    return json.dumps(err)
+
+@app.route('/convert_id')
+def convert_id():
+
+    args = {k: v for k,v in request.args.iteritems()}
+    player_id = args.get('player_id')
+
+    if not player_id:
+        return _fail(error_type="usage", msg="missing required parameter player_id")
+
+    stats_id = fk.converter({'playerId': args['player_id']})
+
+    return json.dumps({"player_id": int(player_id), "stats_id": stats_id})
+
+def _get_espn_ids(cur=None):
+
+    if not cur:
+        cur = db_con.cursor()
+    
+    cur.execute("SELECT fantasy_player_id, stats_player_id FROM espn_ids")
+    id_map = {"{}".format(el[0]): "{}".format(el[1]) for el in cur.fetchall()}
+    if not id_map:
+        _init_id_map()
+        id_map = {"{}".format(el[0]): "{}".format(el[1]) for el in cur.fetchall()}
+
+    return id_map
+
+def _get_mapped_rosters(cur=None):
+
+    rosters = _get_rosters()
+    id_map = _get_espn_ids(cur=cur)
+
+    mapped_rosters = {}
+    found = []
+    not_found = []
+
+
+    for fantasy_id, team_info in rosters.iteritems():
+
+        stats_id = id_map.get(fantasy_id)
+        if stats_id:
+            mapped_rosters[stats_id] = {"team_name": team_info['team_name']}
+        else:
+            stats_id = fk.converter({'playerId': fantasy_id})
+            if stats_id:
+                found.append([stats_id, fantasy_id])
+            else:
+                not_found.append(fantasy_id)
+
+    
+    res = insert_static_records_from_array(found, 'espn_ids', ('stats_player_id', 'fantasy_player_id'))
+
+    return mapped_rosters
 
 @app.route('/espn_fantasy/update_closers')
 def update_closers():
@@ -67,7 +132,11 @@ def update_closers():
     new_table = [(k['player_id'], k['role'], k['player_name'], k['team_code']) for k in rps] # list of tuple, in order to perform set logic with cur.fetchall
 
     cur = db_con.cursor()
+    
+    rosters = _get_mapped_rosters()
+
     cur.execute('SELECT player_id, role, player_name, team_code FROM closers;')
+
     old_table = cur.fetchall()
     old_table_dict = {i[0]: {'role': i[1], 'player_name': i[2], 'team_code': i[3]} for i in old_table} # create dict from list of tuples for fast lookups
 
@@ -77,10 +146,13 @@ def update_closers():
 
     closer_changes = []
     for i in roles_changed:
-        try:
-            notification = '{0} ({1}) was {2} but is now {3}'.format(i[2], i[3], old_table_dict.get(i[0]).get('role'), i[1])
-        except AttributeError: # Attribute error thrown if closer not already in pg table
-            notification = '{0} ({1}) is now {2}'.format(i[2], i[3], i[1])
+        ts_team = rosters.get(unicode(i[0]), {'team_name': 'FA'}).get('team_name')
+        old_entry = old_table_dict.get(i[0])
+        if old_entry:
+            notification = '{0} ({1} - {2}) was {3} but is now {4}'.format(i[2], i[3], ts_team, old_entry.get('role'), i[1])
+        # except AttributeError: # Attribute error thrown if closer not already in pg table
+        else:   
+            notification = '{0} ({1} - {2}) is now {3}'.format(i[2], i[3], ts_team, i[1])
         closer_changes.append(notification)
         if i[0] in [k for k in old_table_dict]:
             update_closer(i)
@@ -100,6 +172,48 @@ def update_closers():
 
     return json.dumps(list(set(closer_changes)))
 
+@app.route('/espn_fantasy/map_player_id')
+def map_player_id():
+
+    res = _init_id_map()
+
+    return res
+
+def _init_id_map():
+
+    cur = db_con.cursor()
+    query = """
+    CREATE TABLE IF NOT EXISTS espn_ids (
+        stats_player_id INT,
+        fantasy_player_id INT
+    )"""
+
+    cur.execute(query)
+
+    url = 'https://raw.githubusercontent.com/dmarkell/sabrfilter/master/espn_ids.tsv'
+
+    res = insert_static_records_from_url(url, 'espn_ids', ('stats_player_id', 'fantasy_player_id'))
+
+    return res
+
+def insert_static_records_from_array(arr, tablename, columns, cur=None):
+
+    string = '\n'.join(['\t'.join([unicode(el) for el in row]) for row in arr])
+    return insert_static_records_from_string(string, tablename, columns, cur=cur)
+
+def insert_static_records_from_url(url, tablename, columns, cur=None):
+
+    string = requests.get(url).text
+    return insert_static_records_from_string(string, tablename, columns, cur=cur)
+
+def insert_static_records_from_string(string, tablename, columns, cur=None):
+
+    if not cur:
+        cur = db_con.cursor()
+    cur.copy_from(StringIO(string), tablename, columns=columns)
+    db_con.commit()
+
+    return '1'
 
 def update_closer(rp, flush_role=False):
 
@@ -111,6 +225,18 @@ def update_closer(rp, flush_role=False):
     cur.execute('UPDATE closers SET player_name=%s, role=%s, team_code=%s WHERE player_id=%s;', (rp[2], role, rp[3], rp[0]))
     db_con.commit()
 
+def _get_rosters():
+
+    lg = fk.League(os.environ['ESPN_LEAGUE_ID'])
+    lg.get_rostered_players()
+
+    return lg.rostered_player_ids
+
+def insert_rostered_player(team_id, player_id):
+
+    cur = db_con.cursor()
+    cur.execute('INSERT INTO rosters(team_id, player_id) VALUES(%s, %s);', (team_id, player_id))
+    db_con.commit()
 
 def insert_closer(rp):
 
