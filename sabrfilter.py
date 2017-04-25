@@ -5,6 +5,7 @@ import json
 import os
 import psycopg2
 import requests
+from collections import OrderedDict
 from StringIO import StringIO
 import urlparse
 
@@ -46,7 +47,7 @@ def send_pitcher_webhook(payload):
     url = os.environ['PITCHER_WEBHOOK_URL']
 
     resp = requests.post(url, json=payload)
-    
+
     return json.dumps(resp.text)
 
 @app.route('/')
@@ -76,6 +77,18 @@ def _fail(err=None, error_type="exception", msg="NA"):
 
     return json.dumps(err)
 
+@app.route('/daily_notes')
+def daily_notes():
+    '''Get game scores from ESPN daily notes article'''
+    gs = fk.GameScores()
+    latest_game_scores = []
+    for key in gs.game_scores:
+        latest_game_scores.append([gs.pitchers[key], gs.game_scores[key]])
+    latest_game_scores.sort(key=lambda x: x[1], reverse=True)
+    post_title = gs.latest_post.split('/')[-1]
+
+    return json.dumps({post_title: latest_game_scores})
+
 @app.route('/convert_id')
 def convert_id():
 
@@ -93,7 +106,7 @@ def _get_espn_ids(cur=None):
 
     if not cur:
         cur = db_con.cursor()
-    
+
     cur.execute("SELECT fantasy_player_id, stats_player_id FROM espn_ids")
     id_map = {"{}".format(el[0]): "{}".format(el[1]) for el in cur.fetchall()}
     if not id_map:
@@ -125,7 +138,7 @@ def _get_mapped_rosters(league_id, cur=None):
             else:
                 not_found.append(fantasy_id)
 
-    
+
     res = insert_static_records_from_array(found, 'espn_ids', ('stats_player_id', 'fantasy_player_id'))
 
     return mapped_rosters
@@ -162,7 +175,7 @@ def update_closers():
         if old_entry:
             notification = '{0} ({1} - {2}) was {3} but is now {4}'.format(i[2], i[3], ts_team, old_entry.get('role'), i[1])
         # except AttributeError: # Attribute error thrown if closer not already in pg table
-        else:   
+        else:
             notification = '{0} ({1} - {2}) is now {3}'.format(i[2], i[3], ts_team, i[1])
         closer_changes.append(notification)
         if i[0] in [k for k in old_table_dict]:
