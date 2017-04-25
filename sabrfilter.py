@@ -5,7 +5,6 @@ import json
 import os
 import psycopg2
 import requests
-from collections import OrderedDict
 from StringIO import StringIO
 import urlparse
 
