@@ -83,6 +83,7 @@ def daily_notes():
     print gs.__class__
     print gs.latest_post
     print gs.game_scores
+    print gs.pitchers
     latest_game_scores = []
     print latest_game_scores
     for k in gs.game_scores:
