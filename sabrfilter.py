@@ -83,6 +83,7 @@ def daily_notes():
     latest_game_scores = []
     for key in gs.game_scores:
         latest_game_scores.append([gs.pitchers[key], gs.game_scores[key]])
+
     latest_game_scores.sort(key=lambda x: x[1], reverse=True)
     post_title = gs.latest_post.split('/')[-1]
 
