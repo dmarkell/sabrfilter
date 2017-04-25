@@ -24,7 +24,7 @@ def converter(opts):
 
     fantasy_id = opts.get('playerId')
     soup = _get_player_popup(fantasy_id)
-    
+
     stats_id = soup.find(class_='pc').findAll('a')[1]['href'].split('=')[1]
 
     return int(stats_id)
@@ -136,12 +136,15 @@ class GameScores():
         r = requests.get(url)
         soup = BeautifulSoup(r.content, 'html.parser')
         self.game_scores = {}
+        self.pitchers = {}
         table = soup.find('table', {'class', 'inline-table'})
         for tr in table.find_all('tr', {'class': 'last'}):
             try:
                 player_id = tr.find('a')['href'].split('/')[-2:-1][0]
                 game_score = tr.find('b').text
+                name = tr.find('a').text
                 self.game_scores[player_id] = game_score
+                self.pitchers[player_id] = name
             except TypeError:
                 print('One of the table rows is missing a player href. Passing.')
                 pass
