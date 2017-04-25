@@ -80,12 +80,14 @@ def _fail(err=None, error_type="exception", msg="NA"):
 def daily_notes():
     '''Get game scores from ESPN daily notes article'''
     gs = fk.GameScores()
+    print gs.__class__
     print gs.latest_post
+    print gs.game_scores
     latest_game_scores = []
     print latest_game_scores
-    for key in gs.game_scores:
-        print key, gs.pitchers[key], gs.game_scores[key]
-        latest_game_scores.append([gs.pitchers[key], gs.game_scores[key]])
+    for k in gs.game_scores:
+        print k, gs.pitchers[k], gs.game_scores[k]
+        latest_game_scores.append([gs.pitchers[k], gs.game_scores[k]])
     latest_game_scores.sort(key=lambda x: x[1], reverse=True)
     print latest_game_scores
     post_title = gs.latest_post.split('/')[-1]
