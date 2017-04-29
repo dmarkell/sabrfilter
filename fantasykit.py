@@ -1,5 +1,6 @@
 import datetime
 import requests
+import json
 from bs4 import BeautifulSoup
 import dateutil.parser as dup
 
@@ -118,6 +119,7 @@ class GameScores():
 
     def __init__(self):
         self.get_game_scores()
+        self.get_fg_team_stats()
 
     def get_latest_post(self):
         r = requests.get('http://www.espn.com/fantasy/baseball/')
@@ -137,14 +139,56 @@ class GameScores():
         soup = BeautifulSoup(r.content, 'html.parser')
         self.game_scores = {}
         self.pitchers = {}
+        self.venues = {}
+        self.opponents = {}
         table = soup.find('table', {'class', 'inline-table'})
         for tr in table.find_all('tr', {'class': 'last'}):
             try:
                 player_id = tr.find('a')['href'].split('/')[-2:-1][0]
                 game_score = tr.find('b').text
                 name = tr.find('a').text
+                team = tr.find('img')['src'].split('/')[-1].split('.')[0]
+                opp = tr.find_all('b')[1].text
+                if '@' in opp:
+                    venue = opp.split('@')[1]
+                    self.opponents[player_id] = opp.split('@')[1]
+                else:
+                    venue = team
+                    self.opponents[player_id] = opp
                 self.game_scores[player_id] = game_score
                 self.pitchers[player_id] = name
+                self.venues[player_id] = venue.lower()
             except TypeError:
                 print('One of the table rows is missing a player href. Passing.')
                 pass
+        self.sorted_by_game_score = sorted(self.game_scores, key=self.game_scores.get, reverse=True)
+
+
+    def get_park_factors(self):
+        with open('./park_codes.json', 'r') as j:
+            park_codes = json.load(j)
+        park_factors_url = 'http://www.espn.com/mlb/stats/parkfactor/_/sort/HRFactor'
+        r = requests.get(park_factors_url)
+        s = BeautifulSoup(r.content, 'html.parser')
+        park_factors = {}
+        for a in s.find_all('a'):
+            if 'http://espn.go.com/travel/stadium/index?eVenue=' in a.get('href'):
+                hr_score = a.parent.parent.find('td', class_='sortcell').text
+                park_factors[a.get('href').split('=')[1]] = hr_score
+        self.park_factors = {}
+        for i in self.pitchers.keys():
+            self.park_factors[i] = park_factors[park_codes[self.venues[i]]]
+
+    def get_fg_team_stats(self):
+        self.get_park_factors()
+        with open('./team_names.json', 'r') as j:
+            team_names = json.load(j)
+        fg_url = 'http://www.fangraphs.com/leaders.aspx?pos=all&stats=bat&lg=all&qual=0&type=8&season=2017&month=0&season1=2017&ind=0&team=0,ts&rost=0&age=0&filter=&players=0&sort=16,d'
+        r = requests.get(fg_url)
+        s = BeautifulSoup(r.content, 'html.parser')
+        wrc_plus = {}
+        for td in s.find_all('td', class_='rgSorted'):
+            wrc_plus[td.parent.find('a').text.lower()] = td.text
+        self.wrc_plus = {}
+        for i in self.pitchers.keys():
+            self.wrc_plus[i] = wrc_plus[team_names[self.opponents[i].lower()]]
