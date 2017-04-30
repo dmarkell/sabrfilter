@@ -3,5 +3,7 @@ env.sh
 *.tsv
 !espn_ids.tsv
 *.json
+!team_names.json
+!park_codes.json
 *.gz
 *.dump
