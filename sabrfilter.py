@@ -342,6 +342,10 @@ def _get_closers():
                         "player_name": rp[1]
                     }
 
+@app.route('/stream_dream')
+def stream_dream():
+    gs = fk.GameScores()
+    return render_template('stream_dream.html', gs=gs)
 
 @app.route('/data_batting')
 def query_db_batting():

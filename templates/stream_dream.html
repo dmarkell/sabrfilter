@@ -1,0 +1,26 @@
+<style>
+   table, tr, td {
+    border: 1px solid black;
+}
+
+</style>
+
+<h3> {{ gs.latest_post }} </h3>
+<table>
+   <tr>
+       <td>Pitcher</td>
+       <td>ESPN Game Score</td>
+       <td>Opposing team</td>
+       <td>wRC+ opp. team</td>
+       <td>HR park factor</td>
+   </tr>
+{% for k in gs.sorted_by_game_score %}
+   <tr>
+      <td> {{ gs.pitchers[k] }} </td>
+      <td> {{ gs.game_scores[k] }} </td>
+      <td> {{ gs.opponents[k] }} </td>
+      <td> {{ gs.wrc_plus[k] }} </td>
+      <td> {{ gs.park_factors[k] }} </td>
+   </tr>
+{% endfor %}
+</table>
