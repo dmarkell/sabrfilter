@@ -234,9 +234,6 @@
         right: 6px;
       }
 
-      /*#activity-datatable thead {
-        display: none;
-      }*/
 
       #activity-datatable tr:hover {
         background-color: #f9f9f9;
@@ -247,84 +244,6 @@
       tr.shown {
         background-color: #595959; 
       }
-
-      /***
-       for chat panel 
-       https://blackrockdigital.github.io/startbootstrap-sb-admin-2/pages/index.html
-      ***/
-
-      .chat {
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-      .chat li {
-        margin-bottom: 10px;
-        padding-bottom: 5px;
-        border-bottom: 1px dotted #999999;
-      }
-
-      .chat-body {
-        word-wrap: break-word;
-      }
-
-      .chat li.left .chat-body {
-        margin-left: 60px;
-      }
-      .chat li.right .chat-body {
-        margin-right: 60px;
-      }
-      .chat li .chat-body p {
-        margin: 0;
-      }
-      .panel .slidedown .glyphicon,
-      .chat .glyphicon {
-        margin-right: 5px;
-      }
-      .chat-panel .panel-body {
-        max-height: 350px;
-        overflow-y: scroll;
-      }
-
-      .dropdown-menu > li > span {
-        display: block;
-        padding: 3px 20px;
-        clear: both;
-        font-weight: 400;
-        line-height: 1.42857143;
-        color: #333;
-        white-space: nowrap;
-      }
-
-      .panel-footer textarea {
-        width: 95% !important;
-        resize: vertical;
-      }
-
-      .input-group-btn {
-        vertical-align: top;
-      }
-
-      .btn.stacked {
-        display: block;
-        width: 100%;
-        border-radius: 3px !important;
-      }
-
-      .stacked:not(:first-child) {
-        margin-top: 3px;
-      }
-
-      #btn-html {
-        background-color: transparent;
-        color: steelblue;
-        border: none;
-        width: 0px;
-        padding: 0 25%;
-        font-weight: bold;
-      }
-
-      /***/
 
       table.settings {
         margin: 0 auto;
@@ -449,22 +368,55 @@
       
         var columns = [
           {
-            "data": "member_id",
-            "name": "member_id",
-            "visible": false,
-            "defaultContent": ""
+            "data": "name",
+            "title": "Player Name",
+            "render": function(d, t, r) {
+              var el = $("<div></div>")
+                .append(
+                  $("<a></a>")
+                    .attr("href", "http://www.espn.com/mlb/player/stats/_/id/" + r.player_id)
+                    .text(d)
+                    .attr("target", "_blank")
+                )
+                .attr("title", "View ESPN Stats »")
+
+              return el.prop("outerHTML");
+            }
           },
+          {
+            "data": "game_score",
+            "title": "Game Score"
+          },
+          {
+            "data": "venue",
+            "title": "Venue"
+          },
+          {
+            "data": "opponent",
+            "title": "Opponent"
+          },
+          {
+            "data": "wrc",
+            "title": "wRC+"
+          },
+          {
+            "data": "park_factor",
+            "title": "Park Factor"
+          }            
         ]
 
         activityTable = $('#activity-datatable').DataTable({
           "columns": columns,
-
+          "order": [
+            [2, "desc"]
+          ]
         })
         .ajax.url(
           "stream_dream_data"
         ).load(function(data) { 
           if ("warning" in data) {
             console.warn("Warning: " + data.warning)
+            console.log(data)
           }
         })
         ;
@@ -498,6 +450,7 @@
           console.warn(msg);
         }
 
+        render_table(config);
       });
 
     </script>

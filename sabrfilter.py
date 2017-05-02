@@ -55,8 +55,8 @@ def render_page():
 
 @app.route('/draft')
 def render_draft_page():
+    
     return app.send_static_file('draft.html')
-
 
 @app.route('/espn_fantasy/get_closers')
 def get_closers():
@@ -344,21 +344,27 @@ def _get_closers():
 
 @app.route('/stream_dream_data')
 def stream_dream_data():
-    
+
     gs = fk.GameScores()
 
-    output = []
+    pitchers = []
     for p, name in gs.pitchers.iteritems():
-        output.append({
+        pitchers.append({
             "name": name,
             "game_score": gs.game_scores[p],
             "venue": gs.venues[p],
             "opponent": gs.opponents[p],
             "wrc": gs.wrc_plus[p],
-            "park_factor": gs.park_factors[p]
+            "park_factor": gs.park_factors[p],
+            "player_id": p
         })
 
-    return json.dumps({"data": output})
+    output = {
+        "data": pitchers,
+        "success": 1
+    }
+
+    return json.dumps(output)
 
 @app.route('/stream_dream')
 def stream_dream():
@@ -392,7 +398,7 @@ def query_db_pitching():
 def get_config():
 
     config = {
-        "version": 'v0.1.1'
+        "version": 'v0.1.1',
     }
 
     return json.dumps(config)
