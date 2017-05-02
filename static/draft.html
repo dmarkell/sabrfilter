@@ -445,6 +445,32 @@
 
       var get_chat_pane_settings, get_user_meta;
 
+      var render_table = function() {
+      
+        var columns = [
+          {
+            "data": "member_id",
+            "name": "member_id",
+            "visible": false,
+            "defaultContent": ""
+          },
+        ]
+
+        activityTable = $('#activity-datatable').DataTable({
+          "columns": columns,
+
+        })
+        .ajax.url(
+          "stream_dream_data"
+        ).load(function(data) { 
+          if ("warning" in data) {
+            console.warn("Warning: " + data.warning)
+          }
+        })
+        ;
+      }
+
+
       $.ajax({
         url: "get_config",
         "beforeSend": function() {

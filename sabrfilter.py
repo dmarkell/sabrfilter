@@ -342,9 +342,28 @@ def _get_closers():
                         "player_name": rp[1]
                     }
 
+@app.route('/stream_dream_data')
+def stream_dream_data():
+    
+    gs = fk.GameScores()
+
+    output = []
+    for p, name in gs.pitchers.iteritems():
+        output.append({
+            "name": name,
+            "game_score": gs.game_scores[p],
+            "venue": gs.venues[p],
+            "opponent": gs.opponents[p],
+            "wrc": gs.wrc_plus[p],
+            "park_factor": gs.park_factors[p]
+        })
+
+    return json.dumps({"data": output})
+
 @app.route('/stream_dream')
 def stream_dream():
     gs = fk.GameScores()
+
     return render_template('stream_dream.html', gs=gs)
 
 @app.route('/data_batting')
