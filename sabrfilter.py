@@ -11,7 +11,6 @@ import urlparse
 from psycopg2.extras import RealDictCursor
 from flask import Flask, request, session, g, redirect, url_for, abort, \
     render_template, flash, send_from_directory
-from flask.ext.heroku import Heroku
 
 import fantasykit as fk
 
@@ -21,16 +20,13 @@ app = Flask(__name__)
 IS_PROD = os.environ.get('IS_HEROKU', None)
 if IS_PROD:
     app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
-    heroku = Heroku(app)
-    urlparse.uses_netloc.append("postgres")
-    url = urlparse.urlparse(os.environ["DATABASE_URL"])
 
     db_con = psycopg2.connect(
-        database=url.path[1:],
-        user=url.username,
-        password=url.password,
-        host=url.hostname,
-        port=url.port
+        database=os.environ['DB_DBNAME'],
+        user=os.environ['DB_USER'],
+        password=os.environ['DB_PWD'],
+        host=os.environ['DB_HOST'],
+        port=os.environ['DB_PORT']
     )
 
 else:
