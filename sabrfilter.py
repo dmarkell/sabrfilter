@@ -364,8 +364,11 @@ def stream_dream_data():
 
 @app.route('/stream_dream')
 def stream_dream():
+
     args = {k: v for k,v in request.args.iteritems()}
     league_id = args.get('leagueId')
+    if not league_id:
+        return _fail(error_type="usage", msg="missing required parameter `league_id`")
     cur = db_con.cursor()
     rosters = _get_mapped_rosters(league_id, cur=cur)
     gs = fk.GameScores()
