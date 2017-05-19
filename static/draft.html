@@ -412,7 +412,7 @@
           ]
         })
         .ajax.url(
-          "stream_dream_data"
+          "stream_dream?format=json"
         ).load(function(data) { 
           if ("warning" in data) {
             console.warn("Warning: " + data.warning)

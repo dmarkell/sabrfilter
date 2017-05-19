@@ -338,10 +338,7 @@ def _get_closers():
                         "player_name": rp[1]
                     }
 
-@app.route('/stream_dream_data')
-def stream_dream_data():
-
-    gs = fk.GameScores()
+def stream_dream_to_json(gs):
 
     pitchers = []
     for p, name in gs.pitchers.iteritems():
@@ -352,31 +349,36 @@ def stream_dream_data():
             "opponent": gs.opponents[p],
             "wrc": gs.wrc_plus[p],
             "park_factor": gs.park_factors[p],
-            "player_id": p
+            "player_id": p,
+            "ts_teams": gs.ts_teams[p]
         })
 
-    output = {
-        "data": pitchers,
-        "success": 1
-    }
-
-    return json.dumps(output)
+    return pitchers
 
 @app.route('/stream_dream')
 def stream_dream():
-
+    
     args = {k: v for k,v in request.args.iteritems()}
     league_id = args.get('leagueId')
     if not league_id:
-        return _fail(error_type="usage", msg="missing required parameter `league_id`")
-    cur = db_con.cursor()
-    rosters = _get_mapped_rosters(league_id, cur=cur)
+        return _fail(error_type="usage", msg="missing required parameter `leagueId`")
+
+    rosters = _get_mapped_rosters(league_id)
     gs = fk.GameScores()
     ts_teams = {}
     for i in gs.pitchers:
         ts_team = rosters.get(unicode(i), {'team_name': 'FA'}).get('team_name')
         ts_teams[i] = ts_team
     gs.set_fantasy_team(ts_teams)
+
+    if 'format' in args and args['format'] == 'json':
+        pitchers = stream_dream_to_json(gs)
+        output = {
+            "data": pitchers,
+            "success": 1
+        }
+
+        return json.dumps(output)
 
     return render_template('stream_dream.html', gs=gs)
 
