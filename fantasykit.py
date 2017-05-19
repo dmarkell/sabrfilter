@@ -192,3 +192,6 @@ class GameScores():
         self.wrc_plus = {}
         for i in self.pitchers.keys():
             self.wrc_plus[i] = wrc_plus[team_names[self.opponents[i].lower()]]
+
+    def set_fantasy_team(self, ts_teams):
+        self.ts_teams = ts_teams

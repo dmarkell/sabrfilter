@@ -51,7 +51,7 @@ def render_page():
 
 @app.route('/draft')
 def render_draft_page():
-    
+
     return app.send_static_file('draft.html')
 
 @app.route('/espn_fantasy/get_closers')
@@ -364,7 +364,16 @@ def stream_dream_data():
 
 @app.route('/stream_dream')
 def stream_dream():
+    args = {k: v for k,v in request.args.iteritems()}
+    league_id = args.get('leagueId')
+    cur = db_con.cursor()
+    rosters = _get_mapped_rosters(league_id, cur=cur)
     gs = fk.GameScores()
+    ts_teams = {}
+    for i in gs.pitchers:
+        ts_team = rosters.get(unicode(i), {'team_name': 'FA'}).get('team_name')
+        ts_teams[i] = ts_team
+    gs.set_fantasy_team(ts_teams)
 
     return render_template('stream_dream.html', gs=gs)
 
