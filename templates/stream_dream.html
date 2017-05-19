@@ -11,6 +11,7 @@
 <table class="sortable">
    <tr>
        <td>Pitcher</td>
+       <td>FA status</td>
        <td>ESPN Game Score</td>
        <td>Opposing team</td>
        <td>wRC+ opp. team</td>
@@ -19,6 +20,7 @@
 {% for k in gs.sorted_by_game_score %}
    <tr>
       <td> {{ gs.pitchers[k] }} </td>
+      <td> {{ gs.ts_teams[k] }} </td>
       <td> {{ gs.game_scores[k] }} </td>
       <td> {{ gs.opponents[k] }} </td>
       <td> {{ gs.wrc_plus[k] }} </td>
