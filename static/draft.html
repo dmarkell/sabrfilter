@@ -9,7 +9,7 @@
     <meta name="author" content="">
     <link rel="shortcut icon" href="./static/baseball.png">
 
-    <title>Draft Tool</title>
+    <title></title>
 
     <!-- Bootstrap core CSS -->
     <link href="../static/bootstrap.min.css" rel="stylesheet">
@@ -269,7 +269,7 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <div><a class="navbar-brand" href="/">...</a><span id="vers"></span></div>
+          <div><a class="navbar-brand" href="/draft">...</a><span id="vers"></span></div>
         </div>
         <!-- <div id="navbar" class="navbar-collapse collapse">
           <ul class="nav navbar-nav navbar-right">
@@ -365,7 +365,8 @@
       var get_chat_pane_settings, get_user_meta;
 
       var render_table = function() {
-      
+        var config = arguments[0];
+        var league_id = config.collected_params.leagueId || config.league_id;
         var columns = [
           {
             "data": "name",
@@ -402,17 +403,24 @@
           {
             "data": "park_factor",
             "title": "Park Factor"
-          }            
+          },
+          {
+            "data": "owner",
+            "title": "Free Agency"
+          }        
         ]
 
         activityTable = $('#activity-datatable').DataTable({
           "columns": columns,
+          "language": {
+            "emptyTable": "Loading Pitchers..."
+          },
           "order": [
             [2, "desc"]
           ]
         })
         .ajax.url(
-          "stream_dream?format=json"
+          "stream_dream?format=json&leagueId=" + league_id
         ).load(function(data) { 
           if ("warning" in data) {
             console.warn("Warning: " + data.warning)
@@ -421,7 +429,6 @@
         })
         ;
       }
-
 
       $.ajax({
         url: "get_config",
@@ -441,6 +448,10 @@
           return
         }
 
+        var page_title = 'StreamDream';
+        $('.navbar-brand').text(page_title + '.');
+        $('title').text(page_title);
+
         var api_version = config.version;
         var client_version = $('#vers').attr("data-version");
         if ( api_version !== client_version ) {
@@ -449,6 +460,15 @@
           msg += ' Consider hard refresh.'
           console.warn(msg);
         }
+
+        var collected_params = {};
+        window.location.search.replace("?", "").split("&").forEach(function(item) { 
+          var pieces = item.split("="); 
+          if (pieces.length == 2) {
+            collected_params[pieces[0]] = pieces[1]
+          }; 
+        });
+        config.collected_params = collected_params;
 
         render_table(config);
       });

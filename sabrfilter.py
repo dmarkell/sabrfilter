@@ -350,7 +350,7 @@ def stream_dream_to_json(gs):
             "wrc": gs.wrc_plus[p],
             "park_factor": gs.park_factors[p],
             "player_id": p,
-            "ts_teams": gs.ts_teams[p]
+            "owner": gs.ts_teams[p]
         })
 
     return pitchers
@@ -409,6 +409,7 @@ def get_config():
 
     config = {
         "version": 'v0.1.1',
+        "league_id": os.environ['ESPN_LEAGUE_ID']
     }
 
     return json.dumps(config)
