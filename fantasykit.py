@@ -177,7 +177,7 @@ class GameScores():
                 park_factors[a.get('href').split('=')[1]] = hr_score
         self.park_factors = {}
         for i in self.pitchers.keys():
-            self.park_factors[i] = park_factors[park_codes[self.venues[i]]]
+            self.park_factors[i] = park_factors.get(park_codes.get(self.venues.get(i)))
 
     def get_fg_team_stats(self):
         self.get_park_factors()
