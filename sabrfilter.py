@@ -357,7 +357,7 @@ def stream_dream_to_json(gs):
 
 @app.route('/stream_dream')
 def stream_dream():
-    
+
     args = {k: v for k,v in request.args.iteritems()}
     league_id = args.get('leagueId')
     if not league_id:
@@ -380,7 +380,19 @@ def stream_dream():
 
         return json.dumps(output)
 
-    return render_template('stream_dream.html', gs=gs)
+    pitchers = []
+    for p, name in gs.pitchers.iteritems():
+        pitchers.append({"name": name,
+                         "team_name": gs.ts_teams[p],
+                         "game_score": gs.game_scores[p],
+                         "opponent": gs.opponents[p],
+                         "venue": gs.venues[p],
+                         "wrc": gs.wrc_plus[p],
+                         "park_factor": gs.park_factors[p]})
+
+    print("Number of pitchers retrieved from Daily Notes: {}".format(len(pitchers)))
+    date = "{:%B %d, %Y}".format(gs.date)
+    return render_template('stream_dream.html', output=json.dumps(pitchers), date=date)
 
 @app.route('/data_batting')
 def query_db_batting():

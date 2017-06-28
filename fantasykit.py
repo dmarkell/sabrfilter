@@ -142,6 +142,7 @@ class GameScores():
         self.venues = {}
         self.opponents = {}
         table = soup.find('table', {'class', 'inline-table'})
+        self.date = dup.parse(table.find('caption').text, fuzzy=True)
         for tr in table.find_all('tr', {'class': 'last'}):
             try:
                 player_id = tr.find('a')['href'].split('/')[-2:-1][0]

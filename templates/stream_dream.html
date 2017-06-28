@@ -1,30 +1,59 @@
-<style>
-   table, tr, td {
-    border: 1px solid black;
-}
-
-</style>
-
-<script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
-
-<h3> {{ gs.latest_post }} </h3>
-<table class="sortable">
-   <tr>
-       <td>Pitcher</td>
-       <td>FA status</td>
-       <td>ESPN Game Score</td>
-       <td>Opposing team</td>
-       <td>wRC+ opp. team</td>
-       <td>HR park factor</td>
-   </tr>
-{% for k in gs.sorted_by_game_score %}
-   <tr>
-      <td> {{ gs.pitchers[k] }} </td>
-      <td> {{ gs.ts_teams[k] }} </td>
-      <td> {{ gs.game_scores[k] }} </td>
-      <td> {{ gs.opponents[k] }} </td>
-      <td> {{ gs.wrc_plus[k] }} </td>
-      <td> {{ gs.park_factors[k] }} </td>
-   </tr>
-{% endfor %}
-</table>
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"></link>
+        <link rel="stylesheet" href="https://cdn.datatables.net/1.10.15/css/jquery.dataTables.min.css"></link>
+        <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+        <script src="https://cdn.datatables.net/1.10.15/js/jquery.dataTables.min.js"></script>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+    </head>
+    <body>
+        <div class="container">
+            <div class="page-header">
+                <h2>Stream Dream</img></h2>
+                <h4 class="text-muted">Your daily guide to streaming fantasy baseball pitchers</h4>
+            </div>
+        </div>
+        <div class="container">
+            <div class="row">
+                 <div class="col-sm-11">
+                     <h5> {{ date }} </h5>
+                 </div>
+            </div>
+            <div class="well well-lg">
+                <table id="stream_dream" class="table-striped" cellspacing="0" width="100%">
+                    <thead>
+                        <tr>
+                            <td>Pitcher</td>
+                            <td>FA status</td>
+                            <td>ESPN Game Score</td>
+                            <td>Opposing team</td>
+                            <td>Venue</td>
+                            <td>wRC+ opp. team</td>
+                            <td>HR park factor</td>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </body>
+</html>
+<script type="text/javascript">
+    var data = JSON.parse('{{ output|safe }}');
+    $(document).ready(function(){
+        $('#stream_dream').DataTable({
+            data : data,
+            "pageLength": 50,
+            "order": [[ 2, "desc" ]],
+            columns: [
+                { data: 'name' },
+                { data: 'team_name' },
+                { data: 'game_score'},
+                { data: 'opponent' },
+                { data: 'venue' },
+                { data: 'wrc' },
+                { data: 'park_factor' }
+            ]
+        });
+    });
+</script>
