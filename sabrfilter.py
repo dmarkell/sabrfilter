@@ -7,12 +7,16 @@ import psycopg2
 import requests
 from StringIO import StringIO
 import urlparse
+import logging
 
 from psycopg2.extras import RealDictCursor
 from flask import Flask, request, session, g, redirect, url_for, abort, \
     render_template, flash, send_from_directory
 
 import fantasykit as fk
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 TOKEN = os.environ['TOKEN']
 app = Flask(__name__)
@@ -362,14 +366,19 @@ def stream_dream():
     league_id = args.get('leagueId')
     if not league_id:
         return _fail(error_type="usage", msg="missing required parameter `leagueId`")
-
+    logger.info('Getting rosters via _get_mapped_rosters')
     rosters = _get_mapped_rosters(league_id)
+    logger.debug(rosters)
+    logger.info('Getting GameScores')
     gs = fk.GameScores()
+    logger.debug(gs.sorted_by_game_score)
     ts_teams = {}
+    logger.info('Getting ownership info from rosters dict')
     for i in gs.pitchers:
         ts_team = rosters.get(unicode(i), {'team_name': 'FA'}).get('team_name')
         ts_teams[i] = ts_team
     gs.set_fantasy_team(ts_teams)
+    logger.debug(gs.ts_teams)
 
     if 'format' in args and args['format'] == 'json':
         pitchers = stream_dream_to_json(gs)
