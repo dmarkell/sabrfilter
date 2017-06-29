@@ -183,11 +183,13 @@ class GameScores():
         self.park_factors = {}
         for i in self.pitchers.keys():
             self.park_factors[i] = park_factors.get(park_codes.get(self.venues.get(i)))
+        logging.debug(self.park_factors)
 
     def get_fg_team_stats(self):
         self.get_park_factors()
         with open('./team_names.json', 'r') as j:
             team_names = json.load(j)
+        logger.debug(team_names)
         fg_url = 'http://www.fangraphs.com/leaders.aspx?pos=all&stats=bat&lg=all&qual=0&type=8&season=2017&month=0&season1=2017&ind=0&team=0,ts&rost=0&age=0&filter=&players=0&sort=16,d'
         r = requests.get(fg_url)
         s = BeautifulSoup(r.content, 'html.parser')
