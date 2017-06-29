@@ -196,6 +196,7 @@ class GameScores():
         wrc_plus = {}
         for td in s.find_all('td', class_='rgSorted'):
             wrc_plus[td.parent.find('a').text.lower()] = td.text
+        logging.debug('wrc_plus dict: {}'.format(wrc_plus))
         self.wrc_plus = {}
         for i in self.pitchers.keys():
             logging.info('getting team abbr')
