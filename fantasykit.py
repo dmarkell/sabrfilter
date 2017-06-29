@@ -3,6 +3,10 @@ import requests
 import json
 from bs4 import BeautifulSoup
 import dateutil.parser as dup
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 def _get_player_popup(fantasy_id):
     """Gets ESPN fantasy player overview popup using fantasyId
@@ -192,7 +196,15 @@ class GameScores():
             wrc_plus[td.parent.find('a').text.lower()] = td.text
         self.wrc_plus = {}
         for i in self.pitchers.keys():
-            self.wrc_plus[i] = wrc_plus[team_names[self.opponents[i].lower()]]
+            logging.info('getting team abbr')
+            opp = self.opponents[i].lower()
+            logging.debug(opp)
+            logging.info("getting team name")
+            team = team_names[opp]
+            logging.debug(team)
+            logging.info('getting wrc+ for team')
+            self.wrc_plus[i] = wrc_plus[team]
+            logging.debug(wrc_plus[team])
 
     def set_fantasy_team(self, ts_teams):
         self.ts_teams = ts_teams
