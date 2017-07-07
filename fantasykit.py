@@ -192,7 +192,8 @@ class GameScores():
         logger.debug(team_names)
         fg_url = 'http://www.fangraphs.com/leaders.aspx?pos=all&stats=bat&lg=all&qual=0&type=8&season=2017&month=0&season1=2017&ind=0&team=0,ts&rost=0&age=0&filter=&players=0&sort=16,d'
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
-        r = requests.get(fg_url, headers=headers)
+        session = requests.Session()
+        r = session.get(fg_url, headers=headers)
         s = BeautifulSoup(r.content, 'html.parser')
         wrc_plus = {}
         for td in s.find_all('td', class_='rgSorted'):
