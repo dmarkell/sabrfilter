@@ -208,7 +208,7 @@ class GameScores():
             logging.debug(team)
             logging.info('getting wrc+ for team')
             self.wrc_plus[i] = wrc_plus.get(team, "n/a")
-            logging.debug(wrc_plus[team])
+            logging.debug(wrc_plus.get(team, "n/a"))
 
     def set_fantasy_team(self, ts_teams):
         self.ts_teams = ts_teams
