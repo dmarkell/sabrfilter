@@ -351,7 +351,8 @@ def stream_dream_to_json(gs):
             "game_score": gs.game_scores[p],
             "venue": gs.venues[p],
             "opponent": gs.opponents[p],
-            "wrc": gs.wrc_plus[p],
+            #"wrc": gs.wrc_plus[p],
+            "ops": gs.ops[p],
             "park_factor": gs.park_factors[p],
             "player_id": p,
             "owner": gs.ts_teams[p]
@@ -396,7 +397,8 @@ def stream_dream():
                          "game_score": gs.game_scores[p],
                          "opponent": gs.opponents[p],
                          "venue": gs.venues[p],
-                         "wrc": gs.wrc_plus[p],
+                         #"wrc": gs.wrc_plus[p],
+                         "ops": gs.ops[p],
                          "park_factor": gs.park_factors[p]})
 
     print("Number of pitchers retrieved from Daily Notes: {}".format(len(pitchers)))

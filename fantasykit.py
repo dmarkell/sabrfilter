@@ -123,7 +123,7 @@ class GameScores():
 
     def __init__(self):
         self.get_game_scores()
-        self.get_fg_team_stats()
+        self.get_opp_team_stats()
 
     def get_latest_post(self):
         r = requests.get('http://www.espn.com/fantasy/baseball/')
@@ -168,7 +168,6 @@ class GameScores():
                 pass
         self.sorted_by_game_score = sorted(self.game_scores, key=self.game_scores.get, reverse=True)
 
-
     def get_park_factors(self):
         with open('./park_codes.json', 'r') as j:
             park_codes = json.load(j)
@@ -183,32 +182,39 @@ class GameScores():
         self.park_factors = {}
         for i in self.pitchers.keys():
             self.park_factors[i] = park_factors.get(park_codes.get(self.venues.get(i)))
-        logging.debug(self.park_factors)
 
-    def get_fg_team_stats(self):
+    def get_opp_team_stats(self):
         self.get_park_factors()
         with open('./team_names.json', 'r') as j:
             team_names = json.load(j)
-        logger.debug(team_names)
-        fg_url = 'http://www.fangraphs.com/leaders.aspx?pos=all&stats=bat&lg=all&qual=0&type=8&season=2017&month=0&season1=2017&ind=0&team=0,ts&rost=0&age=0&filter=&players=0&sort=16,d'
+        tr_url = 'https://www.teamrankings.com/mlb/stat/on-base-plus-slugging-pct'
+        #fg_url = 'http://www.fangraphs.com/leaders.aspx?pos=all&stats=bat&lg=all&qual=0&type=8&season=2017&month=0&season1=2017&ind=0&team=0,ts&rost=0&age=0&filter=&players=0&sort=16,d'
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
-        r = requests.get(fg_url, headers=headers)
+        r = requests.get(tr_url, headers=headers)
         s = BeautifulSoup(r.content, 'html.parser')
-        wrc_plus = {}
-        for td in s.find_all('td', class_='rgSorted'):
-            wrc_plus[td.parent.find('a').text.lower()] = td.text
-        logging.debug('wrc_plus dict: {}'.format(wrc_plus))
-        self.wrc_plus = {}
+        #wrc_plus = {}
+        #for td in s.find_all('td', class_='rgSorted'):
+        #    wrc_plus[td.parent.find('a').text.lower()] = td.text
+        ops = {}
+        for tr in s.find_all('tr'):
+            if tr.find('td'):
+                for td in tr.find_all('td', {'class': 'nowrap'}):
+                    href = td.find('a')['href']
+                    if 'sox' in href or 'jays' in href:
+                        ix = -2
+                    else:
+                        ix = -1
+                    ops[' '.join(href.split('-')[ix:]).strip()] = td.findNextSibling().get_text()
+        #self.wrc_plus = {}
+        self.ops = {}
         for i in self.pitchers.keys():
             logging.info('getting team abbr')
             opp = self.opponents[i].lower()
-            logging.debug(opp)
             logging.info("getting team name")
             team = team_names[opp]
-            logging.debug(team)
-            logging.info('getting wrc+ for team')
-            self.wrc_plus[i] = wrc_plus.get(team, "n/a")
-            logging.debug(wrc_plus.get(team, "n/a"))
+            logging.info('getting ops for team')
+            #self.wrc_plus[i] = wrc_plus.get(team, "n/a")
+            self.ops[i] = ops.get(team, 'n/a')
 
     def set_fantasy_team(self, ts_teams):
         self.ts_teams = ts_teams
