@@ -192,8 +192,7 @@ class GameScores():
         logger.debug(team_names)
         fg_url = 'http://www.fangraphs.com/leaders.aspx?pos=all&stats=bat&lg=all&qual=0&type=8&season=2017&month=0&season1=2017&ind=0&team=0,ts&rost=0&age=0&filter=&players=0&sort=16,d'
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
-        session = requests.Session()
-        r = session.post(fg_url, headers=headers)
+        r = requests.get(fg_url, headers=headers)
         s = BeautifulSoup(r.content, 'html.parser')
         wrc_plus = {}
         for td in s.find_all('td', class_='rgSorted'):
@@ -208,7 +207,7 @@ class GameScores():
             team = team_names[opp]
             logging.debug(team)
             logging.info('getting wrc+ for team')
-            self.wrc_plus[i] = wrc_plus[team]
+            self.wrc_plus[i] = wrc_plus.get(team, "n/a")
             logging.debug(wrc_plus[team])
 
     def set_fantasy_team(self, ts_teams):
